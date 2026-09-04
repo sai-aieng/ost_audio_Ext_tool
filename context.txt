@@ -1,0 +1,1339 @@
+================================================================================
+Date      : 2026-08-31
+Time      : 11:13:55 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : Foundation and Development
+Engineer  : Sai / Codex
+Version   : 1.0.0
+Task      : Scaffold separate FastAPI backend and React frontend applications
+================================================================================
+
+Objective
+---------
+Create a complete video text extraction project from the supplied specification,
+while keeping backend and frontend codebases separate.
+
+Scope
+-----
+Included the FastAPI API, background OCR pipeline, runtime configuration,
+in-memory job tracking, JSON/CSV/TXT exports, React/Vite interface, automated
+backend tests, and operating documentation. Dependency installation and model
+downloads were intentionally not performed at the user's request.
+
+Work Completed
+--------------
+1. Built an independently runnable backend under backend/.
+2. Implemented upload validation, ffprobe metadata extraction, ffmpeg-python
+   frame sampling, perceptual-hash deduplication, ordered OpenCV preprocessing,
+   a process-wide PaddleOCR service, result cleanup, and exporters.
+3. Implemented upload, process, status, results, download, delete, health, CORS,
+   application lifespan, dependency injection, progress, and failure handling.
+4. Built an independently runnable React/Vite frontend under frontend/.
+5. Implemented drag-and-drop upload, pipeline controls, job polling, progress
+   statistics, windowed results, output previews, downloads, reset, responsive
+   design, and visible API errors.
+6. Added backend unit and direct-ASGI integration tests.
+7. Replaced the minimal README with setup, API, architecture, configuration,
+   testing, and production guidance.
+
+Files Created
+-------------
+- backend/main.py, config.yaml, requirements.txt
+- backend/api/, pipeline/, storage/, utils/, tests/
+- backend/temp/.gitkeep and backend/output/.gitkeep
+- frontend/package.json, vite.config.js, index.html
+- frontend/src/api/, components/, hooks/, App.jsx, main.jsx, styles.css
+- .gitignore
+- context.txt
+
+Files Modified
+--------------
+- README.md
+
+Files Deleted
+-------------
+- No pre-existing user files were deleted.
+
+Dependencies Added / Updated
+----------------------------
+- Backend dependency pins are recorded in backend/requirements.txt.
+- Frontend dependency pins are recorded in frontend/package.json.
+- No package installation or dependency download was performed.
+
+Database / Infrastructure Changes
+---------------------------------
+- Added process-local job storage for the requested single-worker version.
+- Added backend-local temp, output, and rotating-log paths.
+- No database or external infrastructure was created.
+
+Tests Added
+-----------
+- Frame extraction orchestration and timestamp tests
+- Perceptual-hash deduplication tests
+- OpenCV preprocessing tests
+- OCR normalization and sliding-window deduplication tests
+- Direct-ASGI API lifecycle and validation tests
+
+Validation Results
+------------------
+- Python compilation: passed for every backend source and test file.
+- Available unit tests: 4 passed.
+- Full pytest collection: blocked because ffmpeg-python is not installed in the
+  current environment; no installation was attempted.
+- JavaScript syntax: passed for Vite config, API client, and polling hook.
+- package.json parse: passed.
+- Frontend production build: not run because node_modules is not installed; no
+  installation was attempted.
+- Placeholder audit: no empty implementations or task placeholders were added.
+
+Performance Results
+-------------------
+No production benchmark was run because runtime dependencies and OCR models were
+not installed.
+
+Observability / Monitoring
+--------------------------
+- Added console and rotating-file logging.
+- Added per-step timing, frame counts, detection counts, progress, and errors.
+- Added a lightweight health endpoint.
+
+Key Challenges
+--------------
+- The workspace required a restricted write workflow.
+- The supplied structure initially placed backend files at the project root,
+  but the user required strict backend/frontend separation.
+- Full verification depended on packages the user chose to install separately.
+
+Resolutions
+-----------
+- Applied all source changes through reviewable patches.
+- Moved all Python runtime concerns under backend/ and kept Vite under frontend/.
+- Ran dependency-free and currently supported checks, recording blocked checks
+  explicitly instead of downloading packages.
+
+Design Decisions
+----------------
+- The frontend is not built into or served by FastAPI.
+- Runtime paths resolve relative to the backend directory.
+- The PaddleOCR service is module-scoped and lazily initializes one model.
+- Job deletion is rejected while processing to avoid filesystem races.
+- Processing overrides use isolated configuration copies.
+
+Architecture Changes
+--------------------
+Introduced two deployable applications connected only through the versioned HTTP
+API. The backend is layered into routes, schemas, storage, pipeline stages, and
+utilities. The frontend is layered into API access, polling, components, and
+application composition.
+
+Security Considerations
+-----------------------
+- Upload extensions and streamed size limits are enforced.
+- Uploaded filenames are not used as storage paths.
+- Job identifiers and cleanup targets are validated before recursive removal.
+- CORS is open only as a documented development default and should be restricted
+  before deployment.
+
+Compatibility
+-------------
+The applications use the pinned dependency versions in their respective package
+manifests. FFmpeg and ffprobe must be present on the system PATH.
+
+Known Issues
+------------
+- Job state is lost when the backend process restarts.
+- Multiple Uvicorn workers do not share job state.
+- FastAPI BackgroundTasks is not a durable queue.
+- Complete tests and the Vite build remain to be run after dependency install.
+
+Documentation Created / Updated
+-------------------------------
+- README.md
+- context.txt
+- Inline module, class, and function documentation
+
+References
+----------
+- codex_prompt_video_ocr.md supplied by the user
+- FastAPI-generated OpenAPI documentation at /docs
+
+Release / Deployment Notes
+--------------------------
+This scaffold has not been deployed. Install backend and frontend dependencies,
+run all tests and the Vite build, then restrict CORS and select durable job
+storage before a production release.
+
+Summary
+-------
+The requested video OCR system is scaffolded as separate backend and frontend
+applications with complete pipeline, API, UI, test, and documentation source.
+
+Next Recommended Task
+---------------------
+Install the declared dependencies, run the complete pytest and Vite build
+commands, then perform an end-to-end test with a short representative video.
+
+Notes
+-----
+PaddleOCR may download its selected language model on first real inference.
+
+================================================================================
+
+================================================================================
+Date      : 2026-08-31
+Time      : 12:43:57 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : Dependency Modernization and Runtime Compatibility
+Engineer  : Sai / Codex
+Version   : 1.1.0
+Task      : Update backend and frontend dependencies and migrate OCR runtime
+================================================================================
+
+Objective
+---------
+Bring the separate backend and frontend dependency manifests to current valid
+versions, remove the OpenCV conflict, and preserve working OCR behavior with
+PaddleOCR 3.x on the Windows CPU runtime.
+
+Scope
+-----
+Included dependency manifest updates, PaddleOCR API migration, OCR input-format
+compatibility, oneDNN mitigation, and focused regression tests. Package
+installation was performed by the user; no dependencies were installed by Codex.
+
+Work Completed
+--------------
+1. Updated backend requirements to current verified releases.
+2. Updated React, React DOM, Vite, and the Vite React plugin in the separate
+   frontend package manifest.
+3. Replaced the conflicting OpenCV headless package with PaddleX-compatible
+   opencv-contrib-python and added an explicit compatible NumPy pin.
+4. Migrated the OCR adapter from PaddleOCR 2.x ocr calls to the PaddleOCR 3.x
+   predict API and normalized the 3.x Result-object output.
+5. Converted preprocessed grayscale frames to three-channel BGR immediately
+   before PaddleOCR inference.
+6. Disabled MKLDNN for the OCR engine after a Windows oneDNN executor failure.
+
+Files Created
+-------------
+- No new production files created.
+
+Files Modified
+--------------
+- backend/requirements.txt
+- frontend/package.json
+- backend/pipeline/ocr_engine.py
+- backend/tests/test_ocr_engine.py
+- context.txt
+
+Files Deleted
+-------------
+- None.
+
+Dependencies Added / Updated
+----------------------------
+- Backend: FastAPI 0.141.1, Uvicorn 0.52.4, PaddlePaddle 3.3.1, PaddleOCR
+  3.7.0, NumPy 2.2.6, and related current pins in backend/requirements.txt.
+- OpenCV: opencv-contrib-python 4.10.0.84 replaces opencv-python-headless to
+  match PaddleOCR 3.7.0 and PaddleX 3.7.0 requirements.
+- PyYAML remains at 6.0.2 because PaddleX 3.7.0 pins that compatible version.
+- Frontend: React and React DOM 19.2.8, Vite 8.2.2, and plugin-react 6.1.1.
+
+Database / Infrastructure Changes
+---------------------------------
+- No database or infrastructure changes.
+
+Tests Added
+-----------
+- PaddleOCR 3.x Result-object normalization test.
+- Regression test verifying grayscale OCR input is converted to BGR.
+
+Validation Results
+------------------
+- All 16 backend and 4 frontend exact pins were verified as valid releases in
+  the official PyPI and npm registries.
+- Backend OCR and preprocessing tests: 6 passed.
+- frontend/package.json parse: passed.
+- Actual model download and first inference were initiated by the user.
+
+Performance Results
+-------------------
+- MKLDNN was disabled for stability after an unsupported oneDNN executor error.
+- CPU inference may be slower than MKLDNN acceleration but should avoid the
+  observed runtime failure.
+
+Observability / Monitoring
+--------------------------
+- Existing job status polling exposed the pipeline failure while model downloads
+  were in progress.
+
+Key Challenges
+--------------
+- PaddleOCR 3.x requires a three-channel image while existing preprocessing
+  intentionally produced grayscale two-dimensional frames.
+- PaddlePaddle oneDNN execution failed on an unsupported array attribute.
+
+Resolutions
+-----------
+- Added BGR conversion only at the OCR boundary, preserving OCR preprocessing.
+- Set enable_mkldnn to false for the PaddleOCR engine.
+
+Design Decisions
+----------------
+- Keep backend and frontend dependency manifests separate.
+- Prefer PaddleX-required OpenCV and PyYAML compatibility pins over blindly
+  using the newest incompatible packages.
+- Retain grayscale preprocessing, converting only for the model input contract.
+
+Architecture Changes
+--------------------
+- The OCR adapter now acts as the compatibility boundary between the existing
+  preprocessing pipeline and PaddleOCR 3.x.
+
+Security Considerations
+-----------------------
+- No security model changes.
+
+Compatibility
+-------------
+- Requires Python 3.10 or newer and Node 20.19 or newer for the updated stack.
+- The current machine uses Python 3.10.9 and Node 24.14.1.
+
+Known Issues
+------------
+- The end-to-end job should be retried after backend reload to confirm runtime
+  completion with the MKLDNN workaround.
+
+Documentation Created / Updated
+-------------------------------
+- context.txt
+
+References
+----------
+- PaddleOCR 3.x upgrade and pipeline documentation.
+- Official PyPI and npm package registries.
+
+Release / Deployment Notes
+--------------------------
+- Restart the backend when automatic reload is not active, then retry processing.
+- PaddleOCR model files are cached under the user PaddleX model directory after
+  their first download.
+
+Summary
+-------
+The dependency update and PaddleOCR 3.x migration are documented, tested, and
+ready for an end-to-end retry.
+
+Next Recommended Task
+---------------------
+Retry a representative video job and record the result in a later context entry.
+
+Notes
+-----
+Every future code, configuration, dependency, or test change must append a new
+entry to this context file using context_templete.txt.
+
+================================================================================
+
+================================================================================
+Date      : 2026-08-31
+Time      : 15:14:17 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : OCR Result Enrichment
+Engineer  : Sai / Codex
+Version   : 1.2.0
+Task      : Add sampled text appearance ranges and exact coordinates
+================================================================================
+
+Objective
+---------
+Show when a detected text item first and last appears in the sampled video
+frames, and make its exact pixel coordinates available in the interface and all
+export formats.
+
+Scope
+-----
+Included backend result fields, cross-frame appearance grouping, JSON/CSV/TXT
+exports, frontend display, and test updates. Frame sampling itself was not
+changed, so temporal accuracy remains limited by the configured sample rate.
+
+Work Completed
+--------------
+1. Added start and end timestamps to each OCR result.
+2. Added start and end four-point polygons and x-min, y-min, x-max, y-max
+   rectangles for each OCR appearance.
+3. Changed text cleanup to group repeated nearby sampled detections into one
+   appearance range and extend its end timestamp and end coordinates.
+4. Updated JSON, CSV, and TXT exports to include time ranges and coordinates.
+5. Updated the frontend table to display a time range and reveal start and end
+   coordinates when a result row is opened.
+6. Updated OCR unit-test expectations for the new fields and grouping behavior.
+
+Files Created
+-------------
+- No files created.
+
+Files Modified
+--------------
+- backend/api/schemas/response.py
+- backend/pipeline/ocr_engine.py
+- backend/pipeline/post_processor.py
+- backend/pipeline/exporter.py
+- backend/tests/test_ocr_engine.py
+- frontend/src/components/ResultsTable.jsx
+- frontend/src/components/OutputTabs.jsx
+- frontend/src/styles.css
+- context.txt
+
+Files Deleted
+-------------
+- None.
+
+Dependencies Added / Updated
+----------------------------
+- No dependency changes.
+
+Database / Infrastructure Changes
+---------------------------------
+- No database or infrastructure changes.
+
+Tests Added
+-----------
+- Assertions for generated timestamp ranges and rectangular coordinate values.
+- Updated repeated-text test to verify one continuous sampled appearance range.
+
+Validation Results
+------------------
+- The complete backend test command was started after this feature change but
+  was interrupted before completion by the user.
+- End-to-end confirmation is pending a user retry with a representative video.
+
+Performance Results
+-------------------
+- No expected processing cost beyond small in-memory result grouping and larger
+  result/export payloads.
+
+Observability / Monitoring
+--------------------------
+- Job status remains unchanged; richer result details are returned after job
+  completion.
+
+Key Challenges
+--------------
+- A text item can appear in several sampled frames and can move between frames.
+
+Resolutions
+-----------
+- Preserve the first polygon as the start coordinate and the latest polygon as
+  the end coordinate while retaining the sampled start/end timestamps.
+
+Design Decisions
+----------------
+- Timestamp ranges are sampled ranges, not frame-perfect visibility intervals.
+- Repeated cleaned text within the configured cross-frame window is treated as
+  one continuous appearance.
+- Existing timestamp_sec remains as the first-detection timestamp for API
+  compatibility.
+
+Architecture Changes
+--------------------
+- The post-processing stage now performs temporal grouping in addition to text
+  cleanup and duplicate suppression.
+
+Security Considerations
+-----------------------
+- No security changes.
+
+Compatibility
+-------------
+- Existing consumers can continue to read timestamp_sec and bbox.
+- New consumers should use timestamp_start_sec, timestamp_end_sec, bbox_end,
+  bbox_xyxy, and bbox_end_xyxy for richer result details.
+
+Known Issues
+------------
+- Time range precision depends on the configured frame sampling rate. At one
+  frame per second, start and end times are accurate only to approximately one
+  second.
+
+Documentation Created / Updated
+-------------------------------
+- context.txt
+
+References
+----------
+- Existing video frame extraction, OCR normalization, and export pipeline.
+
+Release / Deployment Notes
+--------------------------
+- Restart the backend when automatic reload is not active, refresh the frontend,
+  and process a video to populate the new result fields.
+
+Summary
+-------
+OCR results now include sampled appearance start/end times and exact start/end
+pixel coordinates across API responses, the UI, and downloaded output files.
+
+Next Recommended Task
+---------------------
+Run the complete backend test suite and process a short video with static text
+to validate visible ranges and coordinates in the UI and exports.
+
+Notes
+-----
+Future changes must continue to append a template-structured context entry.
+
+================================================================================
+
+================================================================================
+Date      : 2026-09-01
+Time      : 08:47:03 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : Performance and Coordinate Accuracy
+Engineer  : Sai / Codex
+Version   : 1.3.0
+Task      : Map OCR coordinates to source frames while reducing OCR image width
+================================================================================
+
+Objective
+---------
+Improve OCR throughput by using a smaller working image while returning exact
+coordinates in the original video-frame pixel coordinate system.
+
+Scope
+-----
+Included source-dimension preservation, coordinate scaling, 960px OCR working
+width, export/UI source-dimension display, and regression tests. Video sampling
+and text appearance-range behavior were not changed.
+
+Work Completed
+--------------
+1. Added source-frame width and height to every OCR result.
+2. Preserved the original extracted-frame dimensions during preprocessing.
+3. Scaled OCR polygons and rectangles from the resized working image back to
+   original video-frame pixel coordinates before returning results.
+4. Reduced the backend OCR working width from 1280px to 960px for faster OCR.
+5. Updated CSV output and frontend details to identify coordinates as original
+   video-frame pixels and display the source frame resolution.
+6. Added coordinate-scaling test coverage.
+
+Files Created
+-------------
+- No files created.
+
+Files Modified
+--------------
+- backend/api/schemas/response.py
+- backend/config.yaml
+- backend/pipeline/preprocessor.py
+- backend/pipeline/ocr_engine.py
+- backend/pipeline/orchestrator.py
+- backend/pipeline/exporter.py
+- backend/tests/test_preprocessor.py
+- backend/tests/test_ocr_engine.py
+- frontend/src/components/ResultsTable.jsx
+- frontend/src/components/OutputTabs.jsx
+- context.txt
+
+Files Deleted
+-------------
+- None.
+
+Dependencies Added / Updated
+----------------------------
+- No dependency changes.
+
+Database / Infrastructure Changes
+---------------------------------
+- No database or infrastructure changes.
+
+Tests Added
+-----------
+- Regression test mapping a known OCR polygon to the original video-frame
+  coordinate system.
+
+Validation Results
+------------------
+- Backend OCR, preprocessing, and API tests: 9 passed.
+
+Performance Results
+-------------------
+- OCR working width reduced from 1280px to 960px, reducing pixels processed per
+  sampled frame while preserving output coordinates through scaling.
+
+Observability / Monitoring
+--------------------------
+- Output records now expose source_frame_width and source_frame_height.
+
+Key Challenges
+--------------
+- OCR coordinates are produced after resizing but users need source-video pixel
+  positions.
+
+Resolutions
+-----------
+- Map each OCR x/y point by source dimension divided by working-image dimension.
+
+Design Decisions
+----------------
+- bbox and rectangle coordinates now refer to original video-frame pixels.
+- The resized OCR coordinates are not exposed because source coordinates are the
+  relevant user-facing coordinate system.
+
+Architecture Changes
+--------------------
+- The preprocessor returns a typed processed-frame object containing pixels and
+  source dimensions, allowing the OCR adapter to perform coordinate mapping.
+
+Security Considerations
+-----------------------
+- No security changes.
+
+Compatibility
+-------------
+- Existing bbox fields remain available but now contain original-frame pixels.
+- New source_frame_width and source_frame_height fields identify that space.
+
+Known Issues
+------------
+- Resizing can slightly affect recognition quality on very small text; increase
+  the configured resize width when accuracy is more important than speed.
+
+Documentation Created / Updated
+-------------------------------
+- context.txt
+
+References
+----------
+- PaddleOCR 3.x input/output pipeline documentation.
+
+Release / Deployment Notes
+--------------------------
+- Restart the backend when automatic reload is not active and refresh the
+  frontend before the next job.
+
+Summary
+-------
+The backend now uses a 960px OCR working image for speed while all reported
+coordinates remain in the original video-frame pixel system.
+
+Next Recommended Task
+---------------------
+Process a video with known text placement and verify the returned coordinates
+against the source video resolution.
+
+Notes
+-----
+Future changes must continue to append a template-structured context entry.
+
+================================================================================
+
+================================================================================
+Date      : 2026-08-31
+Time      : 15:36:34 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : Timestamp Accuracy Correction
+Engineer  : Sai / Codex
+Version   : 1.2.1
+Task      : Preserve all sampled frames for text appearance ranges
+================================================================================
+
+Objective
+---------
+Ensure reported text start/end times are derived from every sampled video frame
+rather than from a visually deduplicated subset of frames.
+
+Scope
+-----
+Included disabling visual frame deduplication, tightening text-range grouping to
+consecutive samples, increasing the default sample rate, and simplifying the UI
+controls. OCR model behavior and output coordinate schema were not changed.
+
+Work Completed
+--------------
+1. Disabled perceptual-hash frame deduplication in the backend configuration.
+2. Changed the default sampling rate from 1 FPS to 2 FPS.
+3. Changed temporal grouping to join only consecutive sampled detections.
+4. Removed the deduplication-threshold request override and frontend control,
+   since it would undermine duration tracking.
+5. Renamed the frontend sample-rate control to Time precision and raised its
+   maximum to 30 FPS for users who need finer time resolution.
+6. Updated duration-grouping tests for consecutive sampled frames.
+
+Files Created
+-------------
+- No files created.
+
+Files Modified
+--------------
+- backend/config.yaml
+- backend/api/schemas/request.py
+- backend/pipeline/orchestrator.py
+- backend/pipeline/post_processor.py
+- backend/tests/test_ocr_engine.py
+- frontend/src/App.jsx
+- frontend/src/components/PipelineConfig.jsx
+- context.txt
+
+Files Deleted
+-------------
+- None.
+
+Dependencies Added / Updated
+----------------------------
+- No dependency changes.
+
+Database / Infrastructure Changes
+---------------------------------
+- No database or infrastructure changes.
+
+Tests Added
+-----------
+- Updated consecutive-sample appearance-range coverage.
+
+Validation Results
+------------------
+- Focused backend OCR and API tests: 6 passed.
+
+Performance Results
+-------------------
+- OCR now runs on every sampled frame, increasing processing time relative to
+  visual deduplication.
+- Default timing resolution improves from approximately one second to 0.5 second
+  at the new 2 FPS default.
+
+Observability / Monitoring
+--------------------------
+- Frames processed now reflects every sampled frame used for duration tracking.
+
+Key Challenges
+--------------
+- Frame deduplication saves compute but removes temporal evidence required for
+  reliable text appearance ranges.
+
+Resolutions
+-----------
+- Disabled frame deduplication and grouped text only across adjacent samples.
+
+Design Decisions
+----------------
+- Accurate sampled time ranges take priority over OCR throughput.
+- Users may select up to 30 FPS when they need closer-to-frame-level timing.
+
+Architecture Changes
+--------------------
+- The duration-tracking pipeline operates on the complete sampled-frame sequence
+  before post-processing result grouping.
+
+Security Considerations
+-----------------------
+- No security changes.
+
+Compatibility
+-------------
+- Existing API clients no longer need to send hash_threshold.
+- The backend continues to accept sample_rate_fps and confidence_threshold.
+
+Known Issues
+------------
+- Time boundaries remain sampled rather than perfectly frame-exact unless the
+  user sets the sample rate equal to the source video FPS.
+- Higher sample rates proportionally increase OCR processing time.
+
+Documentation Created / Updated
+-------------------------------
+- context.txt
+
+References
+----------
+- Existing frame extraction and appearance-range post-processing pipeline.
+
+Release / Deployment Notes
+--------------------------
+- Restart the backend when automatic reload is not active and refresh the
+  frontend before submitting the next video.
+
+Summary
+-------
+Text appearance ranges now use all sampled frames, so they are no longer
+distorted by visual frame deduplication.
+
+Next Recommended Task
+---------------------
+Process a short video at 2 FPS and inspect the exported timestamp ranges; raise
+Time precision when closer timing is needed.
+
+Notes
+-----
+Future changes must continue to append a template-structured context entry.
+
+================================================================================
+Date      : 2026-09-01
+Time      : 10:13:22 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : Accuracy and Performance Tuning
+Engineer  : Sai / Codex
+Version   : 1.3.1
+Task      : Use PP-OCRv6 Small and tighter timestamp sampling
+================================================================================
+
+Objective
+---------
+Improve text appearance-range timing while using a lighter OCR model suitable
+for clean, small on-screen text.
+
+Scope
+-----
+Included the default sampling rate, OCR model selection, frontend defaults,
+and associated backend test configuration. Frame-level timestamp refinement is
+not included.
+
+Work Completed
+--------------
+1. Increased the default sampling rate from 2 FPS to 10 FPS.
+2. Configured PaddleOCR to use PP-OCRv6_small_det and PP-OCRv6_small_rec.
+3. Made the shared OCR-engine cache distinguish its detection and recognition
+   model settings.
+4. Updated the frontend default Time precision to 10 FPS.
+5. Updated the PaddleOCR-service test configuration for the new model fields.
+
+Files Created
+-------------
+- No files created.
+
+Files Modified
+--------------
+- backend/config.yaml
+- backend/pipeline/ocr_engine.py
+- backend/tests/test_ocr_engine.py
+- frontend/src/App.jsx
+- context.txt
+
+Files Deleted
+-------------
+- None.
+
+Dependencies Added / Updated
+----------------------------
+- No package changes. PaddleOCR downloads the selected small models on their
+  first use and stores them in its local model cache.
+
+Database / Infrastructure Changes
+---------------------------------
+- No database or infrastructure changes.
+
+Tests Added
+-----------
+- Updated OCR-service configuration coverage for the small-model settings.
+
+Validation Results
+------------------
+- Focused backend OCR, preprocessing, and API tests: 9 passed.
+
+Performance Results
+-------------------
+- The small PP-OCRv6 models use substantially smaller model files than the
+  medium models and are intended to reduce CPU OCR work.
+- At the new 10 FPS default, a sampled start/end boundary is accurate to roughly
+  0.1 seconds. This requires five times as many sampled frames as 2 FPS.
+
+Observability / Monitoring
+--------------------------
+- No monitoring changes.
+
+Key Challenges
+--------------
+- Faster OCR and more precise timing compete: tighter time ranges require more
+  video frames to be processed.
+
+Resolutions
+-----------
+- Paired a smaller OCR model with a 10 FPS sampling default to improve both
+  practical speed and timestamp precision.
+
+Design Decisions
+----------------
+- PP-OCRv6 Small is the selected balance for clean, limited text rather than
+  the previously configured medium recognition model.
+- The UI still allows users to lower or raise Time precision for their video.
+
+Architecture Changes
+--------------------
+- OCR model identities are part of the service initialization settings, so one
+  process cannot accidentally reuse an engine built with different models.
+
+Security Considerations
+-----------------------
+- No security changes.
+
+Compatibility
+-------------
+- Existing API requests remain compatible; model names are backend defaults.
+- Restart the backend before the next job so it loads the new model settings.
+
+Known Issues
+------------
+- The reported boundaries remain sampling-based, not frame-perfect. For true
+  frame-level times, set Time precision to the source video's FPS; processing
+  time will increase accordingly.
+
+Documentation Created / Updated
+-------------------------------
+- context.txt
+
+References
+----------
+- PaddleOCR PP-OCRv6 model configuration and model-size documentation.
+
+Release / Deployment Notes
+--------------------------
+- The next backend run downloads PP-OCRv6 Small model files once if absent.
+
+Summary
+-------
+The application now defaults to 10 FPS timestamp sampling and PP-OCRv6 Small,
+giving tighter appearance ranges with a lighter OCR model.
+
+Next Recommended Task
+---------------------
+Run a short video and compare the resulting text start/end times with the
+source playback; adjust Time precision only if 0.1-second resolution is not
+enough.
+
+Notes
+-----
+Future changes must continue to append a template-structured context entry.
+
+================================================================================
+Date      : 2026-09-02
+Time      : 10:29:25 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : Performance Optimization
+Engineer  : Sai / Codex
+Version   : 1.3.3
+Task      : Preserve 10 FPS timing while skipping repeated OCR work
+================================================================================
+
+Objective
+---------
+Reduce OCR processing time without reducing the configured 10 FPS timestamp
+sampling or discarding confirmed text ranges.
+
+Scope
+-----
+Included a lightweight visual-change gate, periodic OCR safety checks, stable
+text timestamp carry-forward, and a temporary frontend display of the saved
+31 August 6:20 PM extraction. GPU enablement is not included because hardware
+availability has not been confirmed.
+
+Work Completed
+--------------
+1. Added a thumbnail-based, conservative visual-change detector.
+2. Retained every 10 FPS frame timestamp while using full OCR only for a
+   changed frame or a mandatory one-second safety refresh.
+3. Propagated confirmed stable text into skipped samples so end times still
+   advance at 0.1-second intervals.
+4. Recorded actual full-OCR frame count separately in job progress and logs.
+5. Added the saved 6:20 PM extraction to the frontend for immediate meeting
+   display and labeled it DM_IN_ENG_MCN_2018_L1T5.
+6. Hid downloads for the temporary saved-result display because its original
+   in-memory job record may no longer exist after a backend restart.
+
+Files Created
+-------------
+- backend/pipeline/change_detector.py
+- backend/tests/test_change_detector.py
+- backend/tests/test_orchestrator.py
+- frontend/src/yesterdayResults.json
+
+Files Modified
+--------------
+- backend/config.yaml
+- backend/pipeline/orchestrator.py
+- frontend/src/App.jsx
+- frontend/src/components/DropZone.jsx
+- frontend/src/components/OutputTabs.jsx
+- context.txt
+
+Files Deleted
+-------------
+- None.
+
+Dependencies Added / Updated
+----------------------------
+- No dependency changes.
+
+Database / Infrastructure Changes
+---------------------------------
+- No database or infrastructure changes.
+
+Tests Added
+-----------
+- Change detector tests for identical and visibly changed frames.
+- Timestamp carry-forward regression test for skipped OCR samples.
+
+Validation Results
+------------------
+- Focused backend change-detector, orchestration, OCR, preprocessing, and API
+  tests: 12 passed.
+
+Performance Results
+-------------------
+- Every sampled frame still receives a 10 FPS timestamp observation.
+- Stable frames avoid full OCR; videos with long static text can require far
+  fewer OCR inferences while retaining 0.1-second sampled ranges.
+- A one-second safety refresh bounds the time a subtle change can go without a
+  full OCR pass.
+
+Observability / Monitoring
+--------------------------
+- OCR logs now report sampled-frame count and actual full-OCR frame count.
+- Job frames_processed now represents full OCR inferences rather than all
+  sampled frames.
+
+Key Challenges
+--------------
+- Skipping OCR outright would have created gaps and inaccurate text end times.
+
+Resolutions
+-----------
+- Stable text is copied into each unchanged timestamp sample before normal
+  consecutive-sample result grouping.
+
+Design Decisions
+----------------
+- The change threshold is deliberately conservative: uncertain frame changes
+  run OCR rather than risk missing a text update.
+- The safety check remains enabled even when no visual change is detected.
+
+Architecture Changes
+--------------------
+- The OCR loop now has a cheap visual gate before expensive PaddleOCR calls.
+
+Security Considerations
+-----------------------
+- Saved frontend display data is bundled locally and is not sent externally.
+
+Compatibility
+-------------
+- Existing process API requests remain compatible.
+- Set ocr_acceleration.enabled to false in config to return to OCR on every
+  sampled frame.
+
+Known Issues
+------------
+- Dynamic videos with large visual changes may still invoke OCR frequently.
+- The temporary frontend saved result should be removed after the meeting to
+  avoid presenting old data as a new upload.
+
+Documentation Created / Updated
+-------------------------------
+- context.txt
+
+References
+----------
+- Existing 10 FPS frame extraction and consecutive-sample range grouping.
+
+Release / Deployment Notes
+--------------------------
+- Restart the backend before the next processing job so the acceleration
+  configuration is loaded. Refresh the frontend to show the saved result.
+
+Summary
+-------
+The pipeline now retains 10 FPS text timing while avoiding repeated OCR on
+visually stable frames, with a one-second safety refresh and verified tests.
+
+Next Recommended Task
+---------------------
+Run the same short video before and after this change and compare the log's
+ocr_frames count with frames_extracted to measure the actual speed gain.
+
+Notes
+-----
+Future changes must continue to append a template-structured context entry.
+
+================================================================================
+Date      : 2026-09-02
+Time      : 10:41:29 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : Audio Transcription
+Engineer  : Sai / Codex
+Version   : 1.4.0
+Task      : Add parallel, independent Whisper audio transcription
+================================================================================
+
+Objective
+---------
+Add local Whisper transcription with source-video segment timestamps while
+keeping OCR and audio as independent tasks started together.
+
+Scope
+-----
+Included the Whisper dependency, audio job lifecycle, transcript exports and
+API, parallel worker execution, and a separate frontend transcript panel.
+
+Work Completed
+--------------
+1. Added openai-whisper 20250625 and an audio-transcription configuration.
+2. Added a lazy Whisper base-model service returning native segment start/end
+   timestamps from the source video audio stream.
+3. Added an independent child audio job and JSON, CSV, TXT transcript exports.
+4. Changed processing to run OCR and audio concurrently in two worker threads.
+5. Added audio status polling and transcript display in the frontend.
+
+Files Created
+-------------
+- backend/pipeline/audio_pipeline.py
+- backend/pipeline/audio_exporter.py
+- frontend/src/hooks/useAudioPoller.js
+- frontend/src/components/TranscriptPanel.jsx
+
+Files Modified
+--------------
+- backend/requirements.txt
+- backend/config.yaml
+- backend/api/schemas/response.py
+- backend/api/routes/process.py
+- backend/api/routes/results.py
+- backend/storage/job_store.py
+- backend/tests/test_api.py
+- frontend/src/api/client.js
+- frontend/src/App.jsx
+- context.txt
+
+Files Deleted
+-------------
+- None.
+
+Dependencies Added / Updated
+----------------------------
+- openai-whisper==20250625. Its installation also resolves PyTorch and other
+  Whisper dependencies.
+
+Database / Infrastructure Changes
+---------------------------------
+- No database changes. Two local worker threads execute the OCR and audio jobs.
+
+Tests Added
+-----------
+- Existing API test configuration disables audio to keep its OCR fixture local.
+
+Validation Results
+------------------
+- Manual dependency/model test pending user installation.
+
+Performance Results
+-------------------
+- OCR and audio now overlap in elapsed time but compete for the same CPU/GPU.
+
+Observability / Monitoring
+--------------------------
+- Separate job IDs, statuses, logs, and output directories are created for OCR
+  and audio.
+
+Key Challenges
+--------------
+- FastAPI background task lists run sequentially, so explicit worker threads
+  are required for actual parallel OCR and audio execution.
+
+Resolutions
+-----------
+- A two-worker executor starts the independent pipelines concurrently.
+
+Design Decisions
+----------------
+- Whisper base is the default CPU balance; language detection is automatic.
+- Whisper segment start/end times are preserved; they are not derived from OCR.
+
+Architecture Changes
+--------------------
+- One upload now produces an OCR job and an independent audio child job.
+
+Security Considerations
+-----------------------
+- Audio is processed locally; no cloud transcription API or external upload is
+  used after the video upload.
+
+Compatibility
+-------------
+- Existing OCR clients remain compatible; process responses add audio_job_id.
+
+Known Issues
+------------
+- Whisper and its base model must be installed/downloaded before the first run.
+- FFmpeg must be available on PATH. CPU-only parallel execution can be slower
+  per task when both models contend for CPU resources.
+
+Documentation Created / Updated
+-------------------------------
+- context.txt
+
+References
+----------
+- https://github.com/openai/whisper
+
+Release / Deployment Notes
+--------------------------
+- Install backend requirements, restart the backend, then refresh the frontend.
+
+Summary
+-------
+The application now starts independent OCR and Whisper audio-transcription jobs
+in parallel and shows their timestamped outputs separately.
+
+Next Recommended Task
+---------------------
+Install Whisper dependencies and manually process a short video with speech.
+
+Notes
+-----
+Future changes must continue to append a template-structured context entry.
+
+================================================================================
+
+================================================================================
+Date      : 2026-09-03
+Time      : 13:33:50 (Asia/Calcutta)
+Project   : Video OCR Pipeline
+Phase     : OCR Result Grouping Accuracy
+Engineer  : Sai / Codex
+Version   : 1.4.1
+Task      : Merge nearby similar OCR detections within 0.15 seconds
+================================================================================
+
+Objective
+---------
+Treat small OCR text variations at nearly identical screen coordinates as one
+continuous appearance when consecutive observations are no more than 0.15
+seconds apart.
+
+Scope
+-----
+Included fuzzy text comparison, coordinate-overlap comparison, the inclusive
+0.15-second grouping window, best-match selection, regression tests, and
+pipeline integration. OCR inference and frame sampling were not changed.
+
+Work Completed
+--------------
+1. Increased the appearance-grouping time gap from 0.10 to 0.15 seconds.
+2. Added case-insensitive fuzzy text matching with an 85 percent threshold.
+3. Added bounding-box intersection-over-union matching with a 50 percent
+   threshold.
+4. Required both text and coordinate similarity before extending a range.
+5. Selected the strongest spatial and textual match when several recent groups
+   are available.
+6. Preserved the first cleaned text and coordinates while updating the ending
+   timestamp, ending coordinates, and maximum confidence.
+
+Files Created
+-------------
+- No files created.
+
+Files Modified
+--------------
+- backend/pipeline/post_processor.py
+- backend/pipeline/orchestrator.py
+- backend/tests/test_ocr_engine.py
+- context.txt
+
+Files Deleted
+-------------
+- None.
+
+Dependencies Added / Updated
+----------------------------
+- No dependency changes. Text similarity uses Python's standard library.
+
+Database / Infrastructure Changes
+---------------------------------
+- No database or infrastructure changes.
+
+Tests Added
+-----------
+- Similar text and nearby coordinates merge at exactly 0.15 seconds.
+- Similar text at different coordinates remains separate.
+- Different text at the same coordinates remains separate.
+- Identical text remains separate above the 0.15-second limit.
+
+Validation Results
+------------------
+- Focused OCR and post-processing tests: 10 passed.
+- Combined orchestration test collection was blocked because ffmpeg-python is
+  not installed in the current environment.
+
+Performance Results
+-------------------
+- No benchmark was run. Matching examines only groups active within the
+  0.15-second window.
+
+Observability / Monitoring
+--------------------------
+- No monitoring changes.
+
+Key Challenges
+--------------
+- Similar wording can appear simultaneously at different places on screen, so
+  fuzzy text alone is insufficient for deciding whether detections are one item.
+
+Resolutions
+-----------
+- A detection now needs both sufficient text similarity and substantial
+  coordinate overlap, in addition to the time requirement.
+
+Design Decisions
+----------------
+- Text similarity defaults to 85 percent.
+- Coordinate similarity uses at least 50 percent rectangle IoU.
+- The 0.15-second boundary is inclusive.
+- When both detections lack coordinates, legacy text-and-time grouping remains
+  available; one missing coordinate and one present coordinate do not match.
+
+Architecture Changes
+--------------------
+- Post-processing now tracks active spatial-text groups instead of indexing
+  groups only by exact normalized text.
+
+Security Considerations
+-----------------------
+- No security changes.
+
+Compatibility
+-------------
+- API and export schemas are unchanged.
+- Existing callers can override the time, text, and coordinate thresholds when
+  calling clean_results directly.
+
+Known Issues
+------------
+- Full orchestration test execution still requires ffmpeg-python in the active
+  Python environment.
+
+Documentation Created / Updated
+-------------------------------
+- context.txt
+
+References
+----------
+- Existing OCR result schema and source-frame coordinate mapping.
+
+Release / Deployment Notes
+--------------------------
+- Restart the backend before processing the next video.
+
+Summary
+-------
+Near-consecutive OCR detections now form one appearance only when their text and
+screen position are similar, preventing duplicate rows without merging repeated
+text from different locations.
+
+Next Recommended Task
+---------------------
+Process a representative video and visually confirm grouping around text-change
+boundaries and for repeated labels at different screen locations.
+
+Notes
+-----
+Future changes must continue to append a template-structured context entry.
+
+================================================================================

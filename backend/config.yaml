@@ -1,0 +1,61 @@
+server:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true
+
+upload:
+  max_file_size_mb: 500
+  allowed_extensions: [".mp4", ".avi", ".mkv", ".mov"]
+  temp_dir: "temp"
+  output_dir: "output"
+
+frame_extraction:
+  # Ten samples each second keep text appearance ranges accurate to about 0.1 s.
+  sample_rate_fps: 10
+  scene_change_detect: false
+
+deduplication:
+  enabled: false
+  hash_threshold: 10
+
+ocr_acceleration:
+  # Keep every 10 FPS timestamp sample, but avoid repeated OCR on stable frames.
+  enabled: true
+  change_threshold: 2.0
+  thumbnail_width: 160
+  safety_check_seconds: 1.0
+
+preprocessing:
+  resize_width: 960
+  grayscale: true
+  clahe_clip_limit: 2.0
+  clahe_tile_grid: [8, 8]
+  denoise_strength: 10
+  sharpen: true
+
+ocr:
+  lang: "en"
+  use_gpu: false
+  confidence_threshold: 0.6
+  use_angle_cls: true
+  # Small models are sufficient for clean, small on-screen text and run faster.
+  text_detection_model_name: "PP-OCRv6_small_det"
+  text_recognition_model_name: "PP-OCRv6_small_rec"
+
+audio_transcription:
+  enabled: true
+  model: "base"
+  language: null
+  use_gpu: false
+
+output:
+  formats: ["json", "csv", "txt"]
+  include_bboxes: true
+  include_confidence: true
+  include_timestamps: true
+
+logging:
+  level: "INFO"
+  log_file: "logs/pipeline.log"
+  max_bytes: 10485760
+  backup_count: 5
