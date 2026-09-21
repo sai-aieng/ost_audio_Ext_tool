@@ -148,8 +148,21 @@ def _run(job_id, video, output, record, config):
                 stop_process(process)
                 raise RuntimeError("Face extraction exceeded its configured time limit.")
         if code != 0:
-            # The detailed native/Python traceback stays in this job's worker.log.
-            raise RuntimeError(f"Face worker failed (exit code {code}). Check the face job worker.log.")
+            # Child stderr is redirected to disk; mirror a bounded tail into
+            # server logs so hosted deployments can diagnose failures too.
+            try:
+                with (output / "worker.log").open("rb") as worker_log:
+                    worker_log.seek(0, os.SEEK_END)
+                    worker_log.seek(max(0, worker_log.tell() - 16384))
+                    detail = worker_log.read(16384).decode("utf-8", errors="replace").strip()
+            except OSError:
+                detail = "Worker log could not be read."
+            LOGGER.error("face_job=%s worker_exit=%s worker_log_tail:\n%s",
+                         job_id, code, detail or "Worker produced no diagnostic output.")
+            raise RuntimeError(
+                f"Face worker failed (exit code {code}). "
+                "Check the Render service logs (worker_log_tail) or the face job worker.log."
+            )
         payload = json.loads((output / "faces.json").read_text(encoding="utf-8"))
         payload["face_job_id"] = job_id
         write_json(output / "faces.json", payload)

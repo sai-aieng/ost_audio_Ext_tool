@@ -151,3 +151,31 @@ def test_native_worker_failure_becomes_failed_job(tmp_path, monkeypatch):
     assert status["status"] == "failed"
     assert "-1073741819" in status["error"]
     assert status["processing_duration_sec"] >= 0
+
+
+def test_failed_worker_traceback_is_visible_in_server_logs(tmp_path, monkeypatch, caplog):
+    class FailedProcess:
+        pid = 456
+        def wait(self, timeout=None):
+            return 1
+        def poll(self):
+            return 1
+
+    def fail(*args, **kwargs):
+        kwargs["stdout"].write(b"old output " * 3000 + b"\nImportError: example missing library\n")
+        return FailedProcess()
+
+    monkeypatch.setattr(service.subprocess, "Popen", fail)
+    monkeypatch.setattr(service, "release_slot", lambda: None)
+    monkeypatch.setattr(service, "_STOPPING", False)
+    job_id = str(uuid4())
+    service._run(job_id, tmp_path / "input.mp4", tmp_path,
+                 {"face_job_id": job_id, "status": "queued"}, {"worker_timeout_seconds": 2})
+    status = service.read_status(tmp_path)
+    assert status["status"] == "failed"
+    assert "worker_log_tail" in status["error"]
+    messages = [r.getMessage() for r in caplog.records if "worker_log_tail:" in r.getMessage()]
+    assert len(messages) == 1
+    assert "ImportError: example missing library" in messages[0]
+    assert len(messages[0]) < 17000
+    assert "ImportError" not in status["error"]
