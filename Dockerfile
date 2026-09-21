@@ -23,9 +23,10 @@ WORKDIR /app/backend
 COPY backend/requirements-render.txt ./requirements-render.txt
 RUN python -m pip install -r requirements-render.txt
 COPY backend/ ./
-# Download models into the image, not Git. Builds fail if preparation fails.
+# Download models and check Linux linking without initializing MediaPipe in the
+# build sandbox. Full model initialization happens in the face worker at runtime.
 RUN python scripts/prepare_face_models.py \
-    && python scripts/check_face_runtime.py \
+    && python scripts/check_face_runtime.py --libraries-only \
     && python scripts/prepare_audio_model.py \
     && python scripts/prepare_ocr_models.py
 COPY --from=frontend /build/frontend/dist /app/frontend/dist

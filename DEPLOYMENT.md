@@ -54,3 +54,10 @@ so verify the full image build/model preparation in Render and test a short vide
 References: [Docker](https://render.com/docs/docker),
 [compute plans](https://render.com/docs/compute-plans),
 [disks](https://render.com/docs/disks).
+
+The Docker build checks MediaPipe shared-library dependencies with `ldd`; it
+does not initialize MediaPipe models inside the build sandbox. Native TCMalloc
+CPU detection aborted during model initialization in the Render builder. Model
+loading is still required at face-job runtime. For a full check on a runtime
+host, run `python scripts/check_face_runtime.py` from the backend directory.
+A passing build does not establish inference compatibility or available memory.
