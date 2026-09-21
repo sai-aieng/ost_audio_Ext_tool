@@ -153,11 +153,12 @@ def clean_results(
                         end_sec,
                     ),
                     "confidence": max(previous.confidence, result.confidence),
+                    "text": cleaned_text if result.confidence > previous.confidence else previous.text,
                     "bbox_end": result.bbox_end or result.bbox,
                     "bbox_end_xyxy": result.bbox_end_xyxy or result.bbox_xyxy,
                 }
             )
-            best_match.comparison_text = comparison_text
+            best_match.comparison_text = _comparison_text(cleaned_results[previous_index].text)
             best_match.last_seen_sec = end_sec
             best_match.bbox_xyxy = end_bbox
             continue

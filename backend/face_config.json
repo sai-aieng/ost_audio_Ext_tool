@@ -1,0 +1,12 @@
+{
+  "model_root": "models/faces",
+  "sample_rate_fps": 2,
+  "max_presenters": 3,
+  "max_poses": 6,
+  "scan_tiles": true,
+  "min_visible_seconds": 1.0,
+  "min_moving_fraction": 0.10,
+  "movement_threshold": 0.025,
+  "min_pixel_change": 0.035,
+  "worker_timeout_seconds": 1800
+}

@@ -117,7 +117,7 @@ def test_run_ocr_maps_coordinates_to_the_original_video_frame() -> None:
         source_size=(40, 60),
     )
 
-    assert results[0].bbox == [[0, 6], [20, 3], [20, 24], [0, 24]]
+    assert results[0].bbox == [[0, 5], [20, 3], [20, 24], [0, 24]]
     assert results[0].bbox_xyxy == [0, 3, 20, 24]
     assert results[0].source_frame_width == 40
     assert results[0].source_frame_height == 60
@@ -194,14 +194,14 @@ def test_clean_results_merges_similar_text_and_coordinates_at_point_15_seconds()
         ExtractionResult(
             frame_index=10,
             timestamp_sec=1.0,
-            text="Loading data",
+            text="Loading dsta.",
             confidence=0.88,
             bbox_xyxy=[10, 10, 110, 30],
         ),
         ExtractionResult(
             frame_index=11,
             timestamp_sec=1.15,
-            text="Loading dsta.",
+            text="Loading data",
             confidence=0.94,
             bbox_xyxy=[12, 9, 112, 31],
         ),
@@ -279,14 +279,15 @@ def test_service_converts_grayscale_frame_to_bgr_for_paddleocr_v3() -> None:
     """PaddleOCR 3.x must not receive the preprocessor's two-dimensional frame."""
 
     service = PaddleOCRService()
-    service._engine = FakePaddleEngine()
-    service._settings = (
+    settings = (
         "en",
         False,
         False,
         "PP-OCRv6_small_det",
         "PP-OCRv6_small_rec",
+        2,
     )
+    service._engines[settings] = FakePaddleEngine()
     service.recognize(
         np.zeros((20, 20), dtype=np.uint8),
         {
@@ -296,5 +297,6 @@ def test_service_converts_grayscale_frame_to_bgr_for_paddleocr_v3() -> None:
             "confidence_threshold": 0.6,
             "text_detection_model_name": "PP-OCRv6_small_det",
             "text_recognition_model_name": "PP-OCRv6_small_rec",
+            "cpu_threads": 2,
         },
     )

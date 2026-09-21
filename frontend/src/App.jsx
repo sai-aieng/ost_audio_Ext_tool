@@ -8,13 +8,13 @@ import {
   uploadVideo,
 } from "./api/client";
 import { DropZone } from "./components/DropZone";
+import { FaceExtractionPanel } from "./components/FaceExtractionPanel";
 import { JobStatus } from "./components/JobStatus";
 import { OutputTabs } from "./components/OutputTabs";
 import { PipelineConfig } from "./components/PipelineConfig";
 import { TranscriptPanel } from "./components/TranscriptPanel";
 import { useAudioPoller } from "./hooks/useAudioPoller";
 import { useJobPoller } from "./hooks/useJobPoller";
-import yesterdayResults from "./yesterdayResults.json";
 
 const COLORS = {
   background: "#F8FAFC",
@@ -30,17 +30,18 @@ const COLORS = {
 };
 
 const DEFAULT_CONFIG = {
+  processing_mode: "fast_cpu",
+  inference_engine: "paddle",
   sample_rate_fps: 10,
   confidence_threshold: 0.6,
 };
 const ALLOWED_EXTENSIONS = [".mp4", ".avi", ".mkv", ".mov"];
-const SAVED_VIDEO_NAME = "DM_IN_ENG_MCN_2018_L1T5";
 
 export function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [savedRuns, setSavedRuns] = useState([]);
   const [selectedSavedRun, setSelectedSavedRun] = useState("");
-  const [savedResults, setSavedResults] = useState(yesterdayResults);
+  const [savedResults, setSavedResults] = useState([]);
   const [pipelineConfig, setPipelineConfig] = useState(DEFAULT_CONFIG);
   const [jobId, setJobId] = useState(null);
   const [audioJobId, setAudioJobId] = useState(null);
@@ -53,13 +54,16 @@ export function App() {
     isPolling,
     error: pollingError,
   } = useJobPoller(jobId);
-  const { status: audioStatus, transcript } = useAudioPoller(audioJobId);
+  const { status: audioStatus, transcript, error: audioError } = useAudioPoller(audioJobId);
 
   useEffect(() => {
     void getSavedExtractions()
-      .then((runs) => {
+      .then(async (runs) => {
         setSavedRuns(runs);
-        if (runs.length) setSelectedSavedRun(runs[0].job_id);
+        if (runs.length) {
+          setSelectedSavedRun(runs[0].job_id);
+          setSavedResults(await getSavedExtraction(runs[0].job_id));
+        }
       })
       .catch(() => {});
   }, []);
@@ -168,6 +172,7 @@ export function App() {
       </header>
 
       <main className="main-content">
+        <FaceExtractionPanel />
         <section className="card upload-card" style={{ background: COLORS.surface }}>
           <div className="section-heading">
             <div>
@@ -189,7 +194,6 @@ export function App() {
           </div>
           <DropZone
             selectedFile={selectedFile}
-            displayName={selectedFile ? undefined : SAVED_VIDEO_NAME}
             onFileSelect={selectFile}
             disabled={controlsDisabled}
           />
@@ -227,7 +231,7 @@ export function App() {
         </section>
 
         <JobStatus status={displayedStatus} isPolling={isPolling} />
-        <TranscriptPanel status={audioStatus} transcript={transcript} />
+        <TranscriptPanel status={audioStatus} transcript={transcript} error={audioError} />
         {!jobId && savedRuns.length > 0 && (
           <label className="slider-field">
             <span style={{ color: COLORS.text }}>Show saved extraction</span>
@@ -241,7 +245,7 @@ export function App() {
           </label>
         )}
         <OutputTabs
-          results={results ?? savedResults}
+          results={jobId ? (results ?? []) : savedResults}
           jobId={jobId}
           showDownloads={Boolean(jobId)}
         />

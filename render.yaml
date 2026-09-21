@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: video-analysis-tool
+    runtime: docker
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # CPU OCR + transcription: benchmark your videos before resizing.
+    plan: 2c-4g
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: video-data
+      mountPath: /var/data
+      sizeGB: 10

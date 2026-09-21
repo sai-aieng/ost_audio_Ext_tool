@@ -1,24 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { getResults, getStatus } from "../api/client";
 
 const POLL_INTERVAL_MS = 1500;
+const RETRY_INTERVAL_MS = 3000;
 
 export function useJobPoller(jobId) {
   const [jobStatus, setJobStatus] = useState(null);
   const [results, setResults] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState("");
-  const intervalRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
+    let timerId;
 
     function stopPolling() {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      window.clearTimeout(timerId);
       if (!cancelled) {
         setIsPolling(false);
       }
@@ -34,25 +32,30 @@ export function useJobPoller(jobId) {
           return;
         }
         setJobStatus(nextStatus);
+        setError("");
         if (nextStatus.status === "completed") {
           const nextResults = await getResults(jobId);
-          if (!cancelled) {
-            setResults(nextResults);
-          }
+          if (cancelled) return;
+          setResults(nextResults);
           stopPolling();
         } else if (nextStatus.status === "failed") {
           setError(nextStatus.error || "Video processing failed.");
           stopPolling();
+        } else {
+          // Schedule after the request finishes so polls cannot overlap.
+          timerId = window.setTimeout(() => void poll(), POLL_INTERVAL_MS);
         }
       } catch (pollError) {
-        if (!cancelled) {
-          setError(
-            pollError instanceof Error
-              ? pollError.message
-              : "Could not retrieve job status.",
-          );
+        if (cancelled) return;
+        if (pollError?.status === 404) {
+          setError("OCR job is no longer available. The backend may have restarted. Reset and upload again.");
+          stopPolling();
+          return;
         }
-        stopPolling();
+        setError("OCR update temporarily unavailable; retrying automatically. " +
+          (pollError instanceof Error ? pollError.message : "Could not retrieve job status."));
+        // Keep the last progress/results and remain in the polling state.
+        timerId = window.setTimeout(() => void poll(), RETRY_INTERVAL_MS);
       }
     }
 
@@ -70,17 +73,11 @@ export function useJobPoller(jobId) {
     setResults(null);
     setError("");
     setIsPolling(true);
-    intervalRef.current = window.setInterval(() => {
-      void poll();
-    }, POLL_INTERVAL_MS);
     void poll();
 
     return () => {
       cancelled = true;
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      window.clearTimeout(timerId);
     };
   }, [jobId]);
 

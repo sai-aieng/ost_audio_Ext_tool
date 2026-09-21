@@ -3,6 +3,24 @@ server:
   port: 8000
   reload: true
 
+processing:
+  # API clients may override this per job with accuracy or fast_cpu.
+  default_mode: accuracy
+  profiles:
+    accuracy: {}
+    fast_cpu:
+      ocr_acceleration:
+        change_detection_mode: tiled
+        change_threshold: 6.0
+        thumbnail_width: 320
+        tile_grid: [8, 8]
+        safety_check_seconds: 10.0
+      preprocessing:
+        resize_width: 960
+        denoise_strength: 0
+      ocr:
+        use_angle_cls: false
+
 upload:
   max_file_size_mb: 500
   allowed_extensions: [".mp4", ".avi", ".mkv", ".mov"]
@@ -10,7 +28,7 @@ upload:
   output_dir: "output"
 
 frame_extraction:
-  # Ten samples each second keep text appearance ranges accurate to about 0.1 s.
+  # 0.1-second sampling grid; skipped observations are estimates, not guarantees.
   sample_rate_fps: 10
   scene_change_detect: false
 
@@ -21,9 +39,17 @@ deduplication:
 ocr_acceleration:
   # Keep every 10 FPS timestamp sample, but avoid repeated OCR on stable frames.
   enabled: true
+  change_detection_mode: mean
   change_threshold: 2.0
   thumbnail_width: 160
+  tile_grid: [4, 4]
   safety_check_seconds: 1.0
+  # Monitor confirmed text at source resolution; also catch cumulative drift.
+  text_region_checks: true
+  region_pixel_threshold: 20
+  region_changed_fraction: 0.02
+  # Exact decoded-frame reuse; per-job bounded cache, never a perceptual match.
+  exact_cache_size: 32
 
 preprocessing:
   resize_width: 960
@@ -34,8 +60,13 @@ preprocessing:
   sharpen: true
 
 ocr:
+  # Select ONNX explicitly for manual comparison; Paddle remains the baseline.
+  inference_engine: paddle
+  onnx_model_root: "models/onnx"
+  onnx_fallback_to_paddle: true
   lang: "en"
   use_gpu: false
+  cpu_threads: 2
   confidence_threshold: 0.6
   use_angle_cls: true
   # Small models are sufficient for clean, small on-screen text and run faster.
@@ -44,9 +75,13 @@ ocr:
 
 audio_transcription:
   enabled: true
+  engine: faster_whisper
   model: "base"
   language: null
   use_gpu: false
+  compute_type: float32
+  cpu_threads: 2
+  faster_model_root: "models/faster-whisper"
 
 output:
   formats: ["json", "csv", "txt"]

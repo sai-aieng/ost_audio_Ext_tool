@@ -12,6 +12,9 @@ backend/temp/*
 !backend/temp/.gitkeep
 backend/output/*
 !backend/output/.gitkeep
+backend/models/onnx/
+backend/models/faster-whisper/
+backend/models/faces/
 frontend/node_modules/
 frontend/dist/
 *.mp4
@@ -20,3 +23,19 @@ frontend/dist/
 *.mov
 .DS_Store
 Thumbs.db
+
+# Local-only notes, demo output, secrets, and generated assets.
+context.txt
+context_templete.txt
+frontend/src/yesterdayResults.json
+frontend/src/OutputPage.jsx
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+backend/models/
+backend/logs/
+*.pem
+*.key
+*.p12
+*.pfx

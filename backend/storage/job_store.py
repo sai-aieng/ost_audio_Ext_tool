@@ -22,9 +22,14 @@ class JobRecord(TypedDict, total=False):
     frames_deduplicated: int
     frames_processed: int
     texts_found: int
+    requested_inference_engine: str | None
+    inference_engine: str | None
+    inference_fallback_reason: str | None
     progress_pct: float
     error: str | None
     created_at: datetime
+    started_at: datetime | None
+    processing_duration_sec: float | None
     completed_at: datetime | None
     results: list[dict[str, Any]]
     output_paths: dict[str, str]
@@ -64,6 +69,8 @@ def create_job(
         progress_pct=0.0,
         error=None,
         created_at=datetime.now(timezone.utc),
+        started_at=None,
+        processing_duration_sec=None,
         completed_at=None,
         results=[],
         output_paths={},
@@ -114,9 +121,14 @@ def to_job_status(record: JobRecord) -> JobStatus:
         frames_deduplicated=record.get("frames_deduplicated", 0),
         frames_processed=record.get("frames_processed", 0),
         texts_found=record.get("texts_found", 0),
+        requested_inference_engine=record.get("requested_inference_engine"),
+        inference_engine=record.get("inference_engine"),
+        inference_fallback_reason=record.get("inference_fallback_reason"),
         progress_pct=record.get("progress_pct", 0.0),
         error=record.get("error"),
         created_at=record["created_at"],
+        started_at=record.get("started_at"),
+        processing_duration_sec=record.get("processing_duration_sec"),
         completed_at=record.get("completed_at"),
     )
 

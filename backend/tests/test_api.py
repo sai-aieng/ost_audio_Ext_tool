@@ -110,7 +110,11 @@ async def test_upload_process_results_download_and_delete(
 
         process_response = await client.post(
             f"/api/v1/process/{job_id}",
-            json={"sample_rate_fps": 1, "output_formats": ["json", "csv", "txt"]},
+            json={
+                "processing_mode": "fast_cpu",
+                "sample_rate_fps": 1,
+                "output_formats": ["json", "csv", "txt"],
+            },
         )
         assert process_response.status_code == 200
 

@@ -170,11 +170,50 @@ h2 {
   transition: transform 150ms ease;
 }
 
+.config-toggle > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-mode-badge {
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #1D4ED8;
+  background: #DBEAFE;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
 .config-fields {
   display: grid;
   gap: 16px;
   padding: 16px;
   border-top: 1px solid #E2E8F0;
+}
+
+.mode-field {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.mode-field select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  color: #0F172A;
+  background: #FFFFFF;
+}
+
+.mode-field small {
+  color: #64748B;
+  font-size: 0.73rem;
+  font-weight: 450;
+  line-height: 1.45;
 }
 
 .slider-field > span {
@@ -213,7 +252,12 @@ h2 {
   padding: 11px 18px;
   border: 0;
   color: #FFFFFF;
-  transition: opacity 150ms ease, transform 150ms ease;
+  background: #2563EB;
+  transition: background 150ms ease, opacity 150ms ease, transform 150ms ease;
+}
+
+.primary-button:not(:disabled):hover {
+  background: #1D4ED8;
 }
 
 .primary-button:disabled {

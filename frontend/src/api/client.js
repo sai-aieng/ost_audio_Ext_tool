@@ -1,4 +1,27 @@
-const API_BASE = "http://127.0.0.1:8001/api/v1";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.PROD ? "/api/v1" : "http://127.0.0.1:8001/api/v1")).replace(/\/$/, "");
+
+export function uploadFaceVideo(file) {
+  const body = new FormData();
+  body.append("file", file);
+  return request("/faces/extract", { method: "POST", body });
+}
+
+export function getFaceStatus(id) {
+  return request("/faces/status/" + encodeURIComponent(id), { signal: AbortSignal.timeout(10000) });
+}
+
+export function getFaceResults(id) {
+  return request("/faces/results/" + encodeURIComponent(id), { signal: AbortSignal.timeout(10000) });
+}
+
+export function getFaceImageUrl(id, track) {
+  return API_BASE + "/faces/images/" + encodeURIComponent(id) + "/" + encodeURIComponent(track);
+}
+
+export function getFaceDownloadUrl(id) {
+  return API_BASE + "/faces/download/" + encodeURIComponent(id);
+}
 
 async function readResponse(response) {
   const contentType = response.headers.get("content-type") || "";
@@ -26,9 +49,11 @@ async function request(path, options = {}) {
       detail = body.trim();
     }
     const suffix = detail ? ": " + detail : "";
-    throw new Error(
+    const error = new Error(
       "API request failed with " + response.status + " " + response.statusText + suffix,
     );
+    error.status = response.status;
+    throw error;
   }
   return body;
 }
@@ -51,11 +76,11 @@ export async function startProcessing(jobId, opts) {
 }
 
 export async function getStatus(jobId) {
-  return request("/status/" + encodeURIComponent(jobId));
+  return request("/status/" + encodeURIComponent(jobId), { signal: AbortSignal.timeout(10000) });
 }
 
 export async function getResults(jobId) {
-  return request("/results/" + encodeURIComponent(jobId));
+  return request("/results/" + encodeURIComponent(jobId), { signal: AbortSignal.timeout(10000) });
 }
 
 export async function getSavedExtractions() {
@@ -67,7 +92,7 @@ export async function getSavedExtraction(jobId) {
 }
 
 export async function getAudioResults(jobId) {
-  return request("/audio/results/" + encodeURIComponent(jobId));
+  return request("/audio/results/" + encodeURIComponent(jobId), { signal: AbortSignal.timeout(10000) });
 }
 
 export function getDownloadUrl(jobId, format) {

@@ -32,9 +32,14 @@ class JobStatus(BaseModel):
     frames_deduplicated: int = 0
     frames_processed: int = 0
     texts_found: int = 0
+    requested_inference_engine: str | None = None
+    inference_engine: str | None = None
+    inference_fallback_reason: str | None = None
     progress_pct: float = Field(default=0, ge=0, le=100)
     error: str | None = None
     created_at: datetime
+    started_at: datetime | None = None
+    processing_duration_sec: float | None = Field(default=None, ge=0)
     completed_at: datetime | None = None
 
 

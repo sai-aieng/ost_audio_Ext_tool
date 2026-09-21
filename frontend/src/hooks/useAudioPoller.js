@@ -8,10 +8,10 @@ export function useAudioPoller(jobId) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    setStatus(null);
+    setTranscript(null);
+    setError("");
     if (!jobId) {
-      setStatus(null);
-      setTranscript(null);
-      setError("");
       return undefined;
     }
     let cancelled = false;
@@ -21,8 +21,10 @@ export function useAudioPoller(jobId) {
         const nextStatus = await getStatus(jobId);
         if (cancelled) return;
         setStatus(nextStatus);
+        setError("");
         if (nextStatus.status === "completed") {
-          setTranscript(await getAudioResults(jobId));
+          const result = await getAudioResults(jobId);
+          if (!cancelled) setTranscript(result);
           return;
         }
         if (nextStatus.status === "failed") {
@@ -31,7 +33,15 @@ export function useAudioPoller(jobId) {
         }
         timerId = window.setTimeout(() => void poll(), 1500);
       } catch (pollError) {
-        if (!cancelled) setError(pollError instanceof Error ? pollError.message : "Could not retrieve audio transcription.");
+        if (cancelled) return;
+        if (pollError?.status === 404) {
+          setStatus(null);
+          setError("Audio job is no longer available. The backend may have restarted. Reset and upload the video again.");
+          return;
+        }
+        setError("Audio status unavailable; retrying. " +
+          (pollError instanceof Error ? pollError.message : "Could not reach the backend."));
+        timerId = window.setTimeout(() => void poll(), 3000);
       }
     }
     void poll();

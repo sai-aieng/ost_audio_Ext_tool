@@ -75,6 +75,11 @@ async def start_processing(
         error=None,
         progress_pct=1.0,
         audio_job_id=audio_job_id,
+        started_at=None,
+        completed_at=None,
+        processing_duration_sec=None,
+        inference_engine=None,
+        inference_fallback_reason=None,
     )
     background_tasks.add_task(
         run_parallel_pipelines,

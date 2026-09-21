@@ -11,7 +11,7 @@ const COLORS = {
 const SETTINGS = [
   {
     key: "sample_rate_fps",
-    label: "Time precision",
+    label: "Sampling rate",
     min: 0.1,
     max: 30,
     step: 0.1,
@@ -27,8 +27,25 @@ const SETTINGS = [
   },
 ];
 
+const MODES = [
+  {
+    value: "fast_cpu",
+    label: "Fast CPU",
+    description:
+      "Uses 960px OCR, checks text-region changes, and reuses identical frames. Safety check every 10 seconds.",
+  },
+  {
+    value: "accuracy",
+    label: "Accuracy",
+    description:
+      "Uses 960px OCR with denoising, angle classification, and a safety check every second. Identical frames are reused.",
+  },
+];
+
 export function PipelineConfig({ value, onChange, disabled }) {
   const [isOpen, setIsOpen] = useState(false);
+  const activeMode =
+    MODES.find((mode) => mode.value === value.processing_mode) ?? MODES[0];
 
   return (
     <section className="config-section" style={{ borderColor: COLORS.border }}>
@@ -39,7 +56,10 @@ export function PipelineConfig({ value, onChange, disabled }) {
         aria-expanded={isOpen}
         style={{ color: COLORS.text }}
       >
-        <span>Pipeline settings</span>
+        <span>
+          Pipeline settings
+          <small className="config-mode-badge">{activeMode.label}</small>
+        </span>
         <svg
           width="18"
           height="18"
@@ -55,6 +75,43 @@ export function PipelineConfig({ value, onChange, disabled }) {
       </button>
       {isOpen && (
         <div className="config-fields" style={{ background: COLORS.surface }}>
+          <label className="mode-field">
+            <span>Processing mode</span>
+            <select
+              value={activeMode.value}
+              disabled={disabled}
+              onChange={(event) =>
+                onChange({
+                  ...value,
+                  processing_mode: event.target.value,
+                })
+              }
+            >
+              {MODES.map((mode) => (
+                <option value={mode.value} key={mode.value}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+            <small>{activeMode.description}</small>
+          </label>
+          <label className="mode-field">
+            <span>Inference engine</span>
+            <select
+              value={value.inference_engine ?? "paddle"}
+              disabled={disabled}
+              onChange={(event) =>
+                onChange({ ...value, inference_engine: event.target.value })
+              }
+            >
+              <option value="paddle">Paddle (baseline)</option>
+              <option value="onnxruntime">ONNX Runtime CPU (experimental)</option>
+            </select>
+            <small>
+              Same models and resolution. ONNX falls back to Paddle if unavailable.
+              Job status shows the actual engine. Compare speed and accuracy manually.
+            </small>
+          </label>
           {SETTINGS.map((setting) => (
             <label className="slider-field" key={setting.key}>
               <span>

@@ -1,17 +1,5 @@
-fastapi==0.141.1
-uvicorn[standard]==0.52.4
-python-multipart==0.0.32
-paddlepaddle==3.3.1
-paddleocr==3.7.0
-numpy==2.2.6
-opencv-contrib-python==4.10.0.84
-ffmpeg-python==0.2.0
-imagehash==4.3.2
-Pillow==12.3.0
-pyyaml==6.0.2
-pydantic==2.13.5
-python-dotenv==1.2.3
-aiofiles==25.1.0
+# Local development and optional original Whisper engine.
+-r requirements-runtime.txt
 pytest==9.1.1
 httpx==0.28.1
 openai-whisper==20250625

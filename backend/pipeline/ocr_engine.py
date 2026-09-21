@@ -2,13 +2,19 @@
 
 import json
 from collections.abc import Mapping
+from pathlib import Path
 from threading import Lock
 from typing import Any
 
 import cv2
+import yaml
 
 from api.schemas.response import ExtractionResult
 from utils.image_utils import ImageArray
+from utils.logger import get_logger
+
+LOGGER = get_logger("ocr_engine")
+BACKEND = Path(__file__).resolve().parents[1]
 
 try:
     from paddleocr import PaddleOCR
@@ -20,14 +26,13 @@ class PaddleOCRService:
     """Lazily load one PaddleOCR model and reuse it for every frame."""
 
     def __init__(self) -> None:
-        """Create an unloaded, thread-safe service."""
+        """Create an empty, thread-safe engine cache."""
 
-        self._engine: Any | None = None
+        self._engines: dict[tuple, Any] = {}
         self._lock = Lock()
-        self._settings: tuple[str, bool, bool, str, str] | None = None
 
     def get_engine(self, config: dict[str, Any]) -> Any:
-        """Return the process-wide engine, initializing it exactly once."""
+        """Return an engine for the selected profile, initializing it once."""
 
         settings = (
             str(config["lang"]),
@@ -35,18 +40,55 @@ class PaddleOCRService:
             bool(config["use_angle_cls"]),
             str(config["text_detection_model_name"]),
             str(config["text_recognition_model_name"]),
+            int(config.get("cpu_threads", 2)),
         )
-        if self._engine is not None:
-            if self._settings != settings:
-                raise RuntimeError("OCR model settings cannot change after initialization")
-            return self._engine
+        backend = str(config.get("inference_engine", "paddle"))
+        if backend not in {"paddle", "onnxruntime"}:
+            raise ValueError(f"Unsupported inference engine: {backend}")
+        model_root = Path(config.get("onnx_model_root", "models/onnx"))
+        if not model_root.is_absolute():
+            model_root = BACKEND / model_root
+        key = settings if backend == "paddle" else settings + (backend, str(model_root.resolve()))
+        engine = self._engines.get(key)
+        if engine is not None:
+            return engine
         with self._lock:
-            if self._engine is None:
+            engine = self._engines.get(key)
+            if engine is None:
                 if PaddleOCR is None:
                     raise RuntimeError(
                         "PaddleOCR is not installed; install backend/requirements.txt"
                     )
-                self._engine = PaddleOCR(
+                extra = {}
+                if backend == "onnxruntime":
+                    if settings[1]:
+                        raise ValueError("This ONNX configuration supports CPU only")
+                    model_dirs = {
+                        "text_detection_model_dir": settings[3],
+                        "text_recognition_model_dir": settings[4],
+                    }
+                    if settings[2]:
+                        model_dirs["textline_orientation_model_dir"] = "PP-LCNet_x1_0_textline_ori"
+                    for argument, name in model_dirs.items():
+                        directory = model_root / name
+                        if not (directory / "inference.onnx").is_file():
+                            raise FileNotFoundError(
+                                f"Missing ONNX model {directory}; run scripts/prepare_onnx_models.py"
+                            )
+                        with (directory / "inference.yml").open(encoding="utf-8") as stream:
+                            metadata = yaml.safe_load(stream)
+                        if metadata.get("Global", {}).get("model_name") != name:
+                            raise ValueError(f"ONNX model identity mismatch: {directory}")
+                        extra[argument] = str(directory)
+                    extra.update(
+                        engine="onnxruntime",
+                        engine_config={
+                            "intra_op_num_threads": settings[5],
+                            "inter_op_num_threads": 1,
+                            "execution_mode": "sequential",
+                        },
+                    )
+                engine = PaddleOCR(
                     lang=settings[0],
                     device="gpu:0" if settings[1] else "cpu",
                     use_doc_orientation_classify=False,
@@ -55,9 +97,12 @@ class PaddleOCRService:
                     enable_mkldnn=False,
                     text_detection_model_name=settings[3],
                     text_recognition_model_name=settings[4],
+                    cpu_threads=settings[5],
+                    **extra,
                 )
-                self._settings = settings
-        return self._engine
+                self._engines[key] = engine
+                LOGGER.info("step=engine_loaded engine=%s threads=%d", backend, settings[5])
+        return engine
 
     def recognize(self, image: ImageArray, config: dict[str, Any]) -> list[Any]:
         """Run the shared engine against one preprocessed frame."""
@@ -75,6 +120,28 @@ class PaddleOCRService:
 # The service is constructed at module scope so model loading occurs at most once
 # per process and never once per video frame.
 OCR_ENGINE = PaddleOCRService()
+
+
+class OCRSession:
+    """Per-job fallback state; never retry failed ONNX inference on every sample."""
+
+    def __init__(self, config: dict[str, Any], service: PaddleOCRService = OCR_ENGINE):
+        self.config = dict(config)
+        self.service = service
+        self.engine_name = str(config.get("inference_engine", "paddle"))
+        self.fallback_reason: str | None = None
+
+    def recognize(self, image: ImageArray, config: dict[str, Any]) -> list[Any]:
+        try:
+            return self.service.recognize(image, self.config)
+        except Exception as exc:
+            if self.engine_name != "onnxruntime" or not self.config.get("onnx_fallback_to_paddle", True):
+                raise
+            self.fallback_reason = f"ONNX failed ({type(exc).__name__}); using Paddle for this job."
+            LOGGER.warning("step=engine_fallback requested=onnxruntime effective=paddle error=%s", exc)
+            self.engine_name = "paddle"
+            self.config["inference_engine"] = "paddle"
+            return self.service.recognize(image, self.config)
 
 
 def _to_paddle_image(image: ImageArray) -> ImageArray:
@@ -145,22 +212,20 @@ def _rectangle_from_polygon(polygon: list[list[int]]) -> list[int]:
 
 
 def _map_to_source_coordinates(
-    polygon: list[list[int]],
+    polygon: list[list[float]],
     image: ImageArray,
     source_size: tuple[int, int] | None,
 ) -> list[list[int]]:
     """Scale OCR-image coordinates back to original video-frame pixels."""
 
-    if source_size is None:
-        return polygon
-    source_width, source_height = source_size
     ocr_height, ocr_width = image.shape[:2]
+    source_width, source_height = source_size or (ocr_width, ocr_height)
     if source_width <= 0 or source_height <= 0 or ocr_width <= 0 or ocr_height <= 0:
         raise ValueError("Source and OCR image dimensions must be positive")
     return [
         [
-            int(round(point[0] * source_width / ocr_width)),
-            int(round(point[1] * source_height / ocr_height)),
+            max(0, min(source_width - 1, int(round(point[0] * source_width / ocr_width)))),
+            max(0, min(source_height - 1, int(round(point[1] * source_height / ocr_height)))),
         ]
         for point in polygon
     ]
@@ -171,7 +236,7 @@ def run_ocr(
     frame_index: int,
     timestamp_sec: float,
     config: dict[str, Any],
-    service: PaddleOCRService = OCR_ENGINE,
+    service: PaddleOCRService | OCRSession = OCR_ENGINE,
     source_size: tuple[int, int] | None = None,
 ) -> list[ExtractionResult]:
     """Recognize text and normalize qualifying PaddleOCR detections."""
@@ -200,7 +265,7 @@ def run_ocr(
         if not text or confidence < threshold:
             continue
         ocr_bbox = [
-            [int(round(float(point[0]))), int(round(float(point[1])))]
+            [float(point[0]), float(point[1])]
             for point in bbox_value
         ]
         bbox = _map_to_source_coordinates(ocr_bbox, image, source_size)

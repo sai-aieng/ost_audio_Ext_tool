@@ -1,0 +1,2 @@
+# Optional runtime; official exported models do not need a local converter.
+onnxruntime==1.23.2

@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from pipeline.preprocessor import process_frame
+from pipeline.preprocessor import load_frame, process_frame, process_image
 
 
 def test_process_frame_resizes_and_returns_grayscale(tmp_path: Path) -> None:
@@ -51,3 +51,28 @@ def test_process_frame_rejects_unreadable_input(tmp_path: Path) -> None:
         assert "could not read" in str(exc)
     else:
         raise AssertionError("Unreadable input did not raise ValueError")
+
+
+def test_loaded_image_can_be_preprocessed_without_reading_twice(
+    tmp_path: Path,
+) -> None:
+    """The change gate and OCR preprocessing should share one decoded image."""
+
+    source = np.zeros((50, 100, 3), dtype=np.uint8)
+    frame_path = tmp_path / "frame.jpg"
+    assert cv2.imwrite(str(frame_path), source)
+    config = {
+        "resize_width": 50,
+        "grayscale": True,
+        "clahe_clip_limit": 2.0,
+        "clahe_tile_grid": [8, 8],
+        "denoise_strength": 0,
+        "sharpen": False,
+    }
+
+    loaded = load_frame(frame_path)
+    processed = process_image(loaded, config)
+
+    assert loaded.shape == (50, 100, 3)
+    assert processed.image.shape == (25, 50)
+    assert (processed.source_width, processed.source_height) == (100, 50)

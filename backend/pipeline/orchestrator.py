@@ -1,6 +1,7 @@
 """Synchronous end-to-end pipeline orchestration for BackgroundTasks."""
 
 from copy import deepcopy
+from collections import Counter
 from datetime import datetime, timezone
 from math import ceil
 from pathlib import Path
@@ -8,13 +9,14 @@ from time import perf_counter
 from typing import Any
 
 from api.schemas.response import ExtractionResult
-from pipeline.change_detector import has_material_change
+from pipeline.change_detector import FrameChangeGuard
+from pipeline.frame_cache import ExactFrameCache
 from pipeline.deduplicator import filter_frames
 from pipeline.exporter import export_results
 from pipeline.frame_extractor import extract_frames
-from pipeline.ocr_engine import run_ocr
+from pipeline.ocr_engine import OCRSession, run_ocr
 from pipeline.post_processor import clean_results
-from pipeline.preprocessor import process_frame
+from pipeline.preprocessor import load_frame, process_image
 from pipeline.video_ingestion import validate_video
 from storage.job_store import get_job, set_results, update_job
 from utils.file_utils import (
@@ -26,6 +28,17 @@ from utils.logger import get_logger
 LOGGER = get_logger("orchestrator")
 
 
+def _merge_config(target: dict[str, Any], overlay: dict[str, Any]) -> None:
+    """Recursively apply a processing-profile overlay to a configuration."""
+
+    for key, value in overlay.items():
+        existing = target.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            _merge_config(existing, value)
+        else:
+            target[key] = deepcopy(value)
+
+
 def _apply_overrides(
     config: dict[str, Any],
     overrides: dict[str, Any],
@@ -33,6 +46,20 @@ def _apply_overrides(
     """Return an isolated config with supported per-job overrides applied."""
 
     effective = deepcopy(config)
+    processing = effective["processing"]
+    mode = str(
+        overrides.get("processing_mode") or processing.get("default_mode", "accuracy")
+    )
+    profiles = processing["profiles"]
+    if mode not in profiles:
+        raise ValueError(f"Unsupported processing mode: {mode}")
+    profile = profiles[mode]
+    if not isinstance(profile, dict):
+        raise ValueError(f"Invalid processing profile: {mode}")
+    _merge_config(effective, profile)
+    processing["selected_mode"] = mode
+    if overrides.get("inference_engine") is not None:
+        effective["ocr"]["inference_engine"] = str(overrides["inference_engine"])
     if overrides.get("sample_rate_fps") is not None:
         effective["frame_extraction"]["sample_rate_fps"] = float(
             overrides["sample_rate_fps"]
@@ -51,7 +78,7 @@ def _carry_results(
     frame_index: int,
     timestamp_sec: float,
 ) -> list[ExtractionResult]:
-    """Attach confirmed unchanged text to the current timestamp sample."""
+    """Retime reused detections; visually skipped samples remain estimates."""
 
     return [
         result.model_copy(
@@ -77,11 +104,18 @@ def run_pipeline(
     """Run ingestion through export synchronously and update job state."""
 
     started_at = perf_counter()
+    started_at_utc = datetime.now(timezone.utc)
     try:
         record = get_job(job_id)
         if record is None:
             raise KeyError(f"Unknown job: {job_id}")
         effective = _apply_overrides(config, config_overrides)
+        ocr_session = OCRSession(effective["ocr"])
+        LOGGER.info(
+            "job=%s step=configure mode=%s",
+            job_id,
+            effective["processing"]["selected_mode"],
+        )
         temp_root = resolve_configured_path(
             base_dir, str(effective["upload"]["temp_dir"])
         )
@@ -94,7 +128,10 @@ def run_pipeline(
             status="processing",
             error=None,
             completed_at=None,
+            started_at=started_at_utc,
+            processing_duration_sec=None,
             progress_pct=1.0,
+            requested_inference_engine=ocr_session.engine_name,
         )
 
         step_started = perf_counter()
@@ -160,18 +197,22 @@ def run_pipeline(
                 * float(effective["frame_extraction"]["sample_rate_fps"])
             ),
         )
-        previous_image = None
+        change_guard = FrameChangeGuard(acceleration)
+        frame_cache = ExactFrameCache(
+            int(acceleration.get("exact_cache_size", 32)) if acceleration_enabled else 0
+        )
         active_results: list[ExtractionResult] = []
         last_ocr_frame_index: int | None = None
         ocr_frames_processed = 0
+        cache_hits = 0
+        carried_frames = 0
+        inference_seconds = 0.0
+        preprocessing_seconds = 0.0
+        refresh_reasons: Counter[str] = Counter()
         for processed_count, frame in enumerate(unique_frames, start=1):
-            processed_frame = process_frame(frame.path, effective["preprocessing"])
-            refresh_for_change = previous_image is None or has_material_change(
-                previous_image,
-                processed_frame.image,
-                int(acceleration["thumbnail_width"]),
-                float(acceleration["change_threshold"]),
-            )
+            source_image = load_frame(frame.path)
+            change_reason = change_guard.change_reason(source_image) if acceleration_enabled else "disabled"
+            refresh_for_change = change_reason is not None
             refresh_for_safety = (
                 last_ocr_frame_index is None
                 or frame.frame_index - last_ocr_frame_index >= safety_check_frames
@@ -180,34 +221,62 @@ def run_pipeline(
                 not acceleration_enabled or refresh_for_change or refresh_for_safety
             )
             if should_run_ocr:
-                frame_results = run_ocr(
-                    processed_frame.image,
-                    frame.frame_index,
-                    frame.timestamp_sec,
-                    effective["ocr"],
-                    source_size=(
-                        processed_frame.source_width,
-                        processed_frame.source_height,
-                    ),
+                refresh_reason = change_reason or "safety"
+                refresh_reasons[refresh_reason] += 1
+                LOGGER.debug(
+                    "job=%s step=ocr_refresh frame=%d timestamp=%.3f reason=%s",
+                    job_id, frame.frame_index, frame.timestamp_sec, refresh_reason,
                 )
+                cache_key = frame_cache.key(source_image) if frame_cache.capacity else None
+                cached = frame_cache.get(cache_key) if cache_key is not None else None
+                if cached is not None:
+                    frame_results = _carry_results(cached, frame.frame_index, frame.timestamp_sec)
+                    cache_hits += 1
+                else:
+                    stage_started = perf_counter()
+                    processed_frame = process_image(source_image, effective["preprocessing"])
+                    preprocessing_seconds += perf_counter() - stage_started
+                    stage_started = perf_counter()
+                    frame_results = run_ocr(
+                        processed_frame.image, frame.frame_index, frame.timestamp_sec,
+                        effective["ocr"],
+                        service=ocr_session,
+                        source_size=(processed_frame.source_width, processed_frame.source_height),
+                    )
+                    inference_seconds += perf_counter() - stage_started
+                    ocr_frames_processed += 1
+                    if cache_key is not None:
+                        frame_cache.put(cache_key, frame_results)
+                if acceleration_enabled:
+                    change_guard.confirm(source_image, frame_results)
                 active_results = frame_results
                 last_ocr_frame_index = frame.frame_index
-                ocr_frames_processed += 1
             else:
+                carried_frames += 1
                 frame_results = _carry_results(
                     active_results,
                     frame.frame_index,
                     frame.timestamp_sec,
                 )
             raw_results.extend(frame_results)
-            previous_image = processed_frame.image
             progress = 30.0 + (55.0 * processed_count / max(total_unique, 1))
             update_job(
                 job_id,
                 frames_processed=ocr_frames_processed,
                 texts_found=len(raw_results),
                 progress_pct=round(progress, 2),
+                inference_engine=ocr_session.engine_name,
+                inference_fallback_reason=ocr_session.fallback_reason,
             )
+        LOGGER.info(
+            "job=%s step=ocr_engine requested=%s effective=%s refresh_reasons=%s",
+            job_id, effective["ocr"].get("inference_engine", "paddle"),
+            ocr_session.engine_name, dict(refresh_reasons),
+        )
+        LOGGER.info(
+            "job=%s step=ocr_breakdown cache_hits=%d carried_frames=%d preprocessing=%.3fs inference=%.3fs",
+            job_id, cache_hits, carried_frames, preprocessing_seconds, inference_seconds,
+        )
         LOGGER.info(
             "job=%s step=ocr samples=%d ocr_frames=%d detections=%d duration=%.3fs",
             job_id,
@@ -253,16 +322,18 @@ def run_pipeline(
         except (OSError, ValueError):
             LOGGER.warning("job=%s frame cleanup failed", job_id, exc_info=True)
 
+        elapsed_seconds = round(perf_counter() - started_at, 3)
         update_job(
             job_id,
             status="completed",
             progress_pct=100.0,
             completed_at=datetime.now(timezone.utc),
+            processing_duration_sec=elapsed_seconds,
         )
         LOGGER.info(
             "job=%s step=complete total_duration=%.3fs",
             job_id,
-            perf_counter() - started_at,
+            elapsed_seconds,
         )
     except Exception as exc:
         LOGGER.exception("job=%s pipeline failed", job_id)
@@ -272,4 +343,6 @@ def run_pipeline(
                 status="failed",
                 error=str(exc),
                 completed_at=datetime.now(timezone.utc),
+                started_at=started_at_utc,
+                processing_duration_sec=round(perf_counter() - started_at, 3),
             )

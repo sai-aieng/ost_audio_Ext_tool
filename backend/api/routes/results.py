@@ -1,5 +1,6 @@
 """Result retrieval, download, and job cleanup endpoints."""
 
+import json
 from pathlib import Path
 from typing import Any, Literal
 
@@ -15,7 +16,7 @@ from api.schemas.response import (
     TranscriptSegment,
 )
 from storage.job_store import delete_job, get_job
-from utils.file_utils import remove_directory_within, resolve_configured_path
+from utils.file_utils import job_directory, remove_directory_within, resolve_configured_path
 
 router = APIRouter(tags=["results"])
 ResultFormat = Literal["json", "csv", "txt"]

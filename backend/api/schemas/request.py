@@ -10,6 +10,8 @@ class ProcessOptions(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    processing_mode: Literal["accuracy", "fast_cpu"] | None = None
+    inference_engine: Literal["paddle", "onnxruntime"] | None = None
     sample_rate_fps: float | None = Field(default=None, gt=0, le=30)
     output_formats: list[Literal["json", "csv", "txt"]] | None = None
     confidence_threshold: float | None = Field(default=None, ge=0, le=1)
