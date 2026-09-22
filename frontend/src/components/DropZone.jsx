@@ -19,7 +19,7 @@ function formatBytes(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
-export function DropZone({ selectedFile, displayName, onFileSelect, disabled }) {
+export function DropZone({ selectedFile, displayName, onFileSelect, disabled, label = "Choose a video" }) {
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -48,6 +48,7 @@ export function DropZone({ selectedFile, displayName, onFileSelect, disabled }) 
     <div
       className="drop-zone"
       role="button"
+      aria-label={selectedFile ? `${label}: ${selectedFile.name}` : label}
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled}
       onClick={chooseFile}
@@ -107,7 +108,8 @@ export function DropZone({ selectedFile, displayName, onFileSelect, disabled }) 
         </div>
       ) : (
         <div>
-          <strong>Drop a video here or click to browse</strong>
+          <strong>{label}</strong>
+          <span className="drop-zone-hint">Drop your video here or click to browse</span>
           <span className="drop-zone-hint" style={{ color: COLORS.muted }}>
             MP4, AVI, MKV, or MOV
           </span>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getFaceDownloadUrl, getFaceImageUrl, uploadFaceVideo } from "../api/client";
+import { DropZone } from "./DropZone";
 import { useFacePoller } from "../hooks/useFacePoller";
 
 function seconds(value) {
@@ -47,13 +48,11 @@ export function FaceExtractionPanel() {
     return () => window.clearInterval(timer);
   }, [isPolling]);
 
-  function selectFile(event) {
-    const selected = event.target.files?.[0];
+  function selectFile(selected) {
     if (!selected) return;
     if (!/\.(mp4|avi|mkv|mov)$/i.test(selected.name) || selected.size === 0) {
       setFile(null);
       setUploadError("Choose a non-empty MP4, AVI, MKV, or MOV video.");
-      event.target.value = "";
       return;
     }
     setFile(selected);
@@ -89,17 +88,14 @@ export function FaceExtractionPanel() {
   return (
     <section className="card upload-card" aria-labelledby="face-heading">
       <div className="section-heading"><div>
-        <p className="eyebrow">Separate face extraction</p>
-        <h2 id="face-heading">Upload video for faces</h2>
+        <p className="eyebrow">Face image tool</p>
+        <h2 id="face-heading">Extract face images from video</h2>
       </div></div>
-      <p>Extract padded face images into narrator and static folders. This upload does not start OCR or audio.</p>
-      <label className="slider-field" htmlFor="face-video">
-        <span>Choose face-extraction video</span>
-        <input id="face-video" type="file" accept=".mp4,.avi,.mkv,.mov" disabled={busy} onChange={selectFile} />
-      </label>
-      {file && <p>{file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB</p>}
+      <p className="workflow-description">Get face photos grouped into narrator candidates and static / uncertain faces, with timestamps and duplicate-photo filtering.</p>
+      <p className="upload-step">1. Choose a video for face extraction</p>
+      <DropZone label="Choose video for face extraction" selectedFile={file} onFileSelect={selectFile} disabled={busy} />
       <button className="primary-button" type="button" disabled={!file || busy} onClick={() => void start()} aria-busy={busy}>
-        {submitting ? "Uploading face video…" : isPolling ? "Extracting faces…" : "Upload & extract faces"}
+        {submitting ? "Uploading face video…" : isPolling ? "Extracting faces…" : "2. Upload & extract face images"}
       </button>
       {(uploadError || error) && <div className="error-message" role="alert">{uploadError || error}</div>}
       {jobId && <div>

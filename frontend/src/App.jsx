@@ -38,6 +38,7 @@ const DEFAULT_CONFIG = {
 const ALLOWED_EXTENSIONS = [".mp4", ".avi", ".mkv", ".mov"];
 
 export function App() {
+  const [activeWorkflow, setActiveWorkflow] = useState("faces");
   const [selectedFile, setSelectedFile] = useState(null);
   const [savedRuns, setSavedRuns] = useState([]);
   const [selectedSavedRun, setSelectedSavedRun] = useState("");
@@ -164,22 +165,40 @@ export function App() {
           </svg>
         </div>
         <div>
-          <h1 style={{ color: COLORS.text }}>Video OCR Tester</h1>
+          <h1 style={{ color: COLORS.text }}>Video Extraction Studio</h1>
           <p style={{ color: COLORS.muted }}>
-            Extract timestamped text from video frames.
+            Choose face images or extract on-screen text and audio from your video.
           </p>
         </div>
       </header>
 
       <main className="main-content">
-        <FaceExtractionPanel />
+        <nav className="workflow-navigation" aria-label="Choose extraction tool">
+          <button type="button" className="workflow-choice" aria-pressed={activeWorkflow === "faces"}
+            aria-controls="faces-workflow" onClick={() => setActiveWorkflow("faces")}>
+            <span className="workflow-choice-title">Face extraction</span>
+            <span>Save face photos from your video</span>
+            <small>Output: face images + JSON</small>
+          </button>
+          <button type="button" className="workflow-choice" aria-pressed={activeWorkflow === "ocr"}
+            aria-controls="ocr-workflow" onClick={() => setActiveWorkflow("ocr")}>
+            <span className="workflow-choice-title">Text extraction (OCR) &amp; audio</span>
+            <span>Read on-screen text and transcribe speech</span>
+            <small>Output: timestamped text + transcript</small>
+          </button>
+        </nav>
+        <p className="workflow-switch-hint">Each tool has its own video upload and results. Switch tools without losing your current selection or progress.</p>
+        <div id="faces-workflow" className="workflow-panel" hidden={activeWorkflow !== "faces"}>
+          <FaceExtractionPanel />
+        </div>
+        <div id="ocr-workflow" className="workflow-panel" hidden={activeWorkflow !== "ocr"}>
         <section className="card upload-card" style={{ background: COLORS.surface }}>
           <div className="section-heading">
             <div>
               <p className="eyebrow" style={{ color: COLORS.muted }}>
-                New extraction
+                Text & audio tool
               </p>
-              <h2 style={{ color: COLORS.text }}>Upload a source video</h2>
+              <h2 style={{ color: COLORS.text }}>Extract text &amp; audio from video</h2>
             </div>
             {jobId && (
               <button
@@ -192,7 +211,10 @@ export function App() {
               </button>
             )}
           </div>
+          <p className="workflow-description">Get on-screen text with timestamps and an audio transcript. Download text results as JSON, CSV, or TXT.</p>
+          <p className="upload-step">1. Choose a video for text &amp; audio</p>
           <DropZone
+            label="Choose video for OCR & audio"
             selectedFile={selectedFile}
             onFileSelect={selectFile}
             disabled={controlsDisabled}
@@ -213,7 +235,7 @@ export function App() {
             }}
           >
             {isSubmitting && <span className="button-spinner" aria-hidden="true" />}
-            {isSubmitting ? "Uploading..." : "Upload & run"}
+            {isSubmitting ? "Uploading text & audio video..." : "2. Upload & extract text + audio"}
           </button>
           {displayedError && (
             <div
@@ -249,6 +271,7 @@ export function App() {
           jobId={jobId}
           showDownloads={Boolean(jobId)}
         />
+        </div>
       </main>
     </div>
   );
