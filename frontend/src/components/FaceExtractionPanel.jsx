@@ -95,7 +95,7 @@ export function FaceExtractionPanel() {
       <p className="upload-step">1. Choose a video for face extraction</p>
       <DropZone label="Choose video for face extraction" selectedFile={file} onFileSelect={selectFile} disabled={busy} />
       <button className="primary-button" type="button" disabled={!file || busy} onClick={() => void start()} aria-busy={busy}>
-        {submitting ? "Uploading face video…" : isPolling ? "Extracting faces…" : "2. Upload & extract face images"}
+        {submitting ? "Uploading face video…" : isPolling ? "Extracting faces…" : "Upload & extract face images"}
       </button>
       {(uploadError || error) && <div className="error-message" role="alert">{uploadError || error}</div>}
       {jobId && <div>

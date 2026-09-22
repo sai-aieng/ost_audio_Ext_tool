@@ -235,7 +235,7 @@ export function App() {
             }}
           >
             {isSubmitting && <span className="button-spinner" aria-hidden="true" />}
-            {isSubmitting ? "Uploading text & audio video..." : "2. Upload & extract text + audio"}
+            {isSubmitting ? "Uploading text & audio video..." : "Upload & extract text + audio"}
           </button>
           {displayedError && (
             <div
