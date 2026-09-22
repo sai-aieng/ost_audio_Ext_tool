@@ -110,3 +110,17 @@ export async function deleteJob(jobId) {
     method: "DELETE",
   });
 }
+
+// Gemini has independent uploads and job state; credentials stay on the server.
+export function getGeminiConfig() { return request('/gemini/config'); }
+export function analyzeWithGemini(file, options) {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('include_dialogue', String(options.dialogue));
+  body.append('include_faces', String(options.faces));
+  return request('/gemini/analyze', { method: 'POST', body });
+}
+export function getGeminiStatus(id) { return request('/gemini/status/' + encodeURIComponent(id), { signal: AbortSignal.timeout(15000) }); }
+export function getGeminiResults(id) { return request('/gemini/results/' + encodeURIComponent(id), { signal: AbortSignal.timeout(15000) }); }
+export function geminiDownloadUrl(id, format) { return API_BASE + '/gemini/download/' + encodeURIComponent(id) + '/' + format; }
+export function geminiFaceUrl(id, face) { return API_BASE + '/gemini/images/' + encodeURIComponent(id) + '/' + encodeURIComponent(face); }

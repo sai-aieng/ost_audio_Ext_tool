@@ -7,6 +7,7 @@ import {
   startProcessing,
   uploadVideo,
 } from "./api/client";
+import { GeminiAnalysisPanel } from "./components/GeminiAnalysisPanel";
 import { DropZone } from "./components/DropZone";
 import { FaceExtractionPanel } from "./components/FaceExtractionPanel";
 import { JobStatus } from "./components/JobStatus";
@@ -38,7 +39,7 @@ const DEFAULT_CONFIG = {
 const ALLOWED_EXTENSIONS = [".mp4", ".avi", ".mkv", ".mov"];
 
 export function App() {
-  const [activeWorkflow, setActiveWorkflow] = useState("faces");
+  const [activeWorkflow, setActiveWorkflow] = useState("gemini");
   const [selectedFile, setSelectedFile] = useState(null);
   const [savedRuns, setSavedRuns] = useState([]);
   const [selectedSavedRun, setSelectedSavedRun] = useState("");
@@ -167,13 +168,19 @@ export function App() {
         <div>
           <h1 style={{ color: COLORS.text }}>Video Extraction Studio</h1>
           <p style={{ color: COLORS.muted }}>
-            Choose face images or extract on-screen text and audio from your video.
+            Analyze scenes with Gemini, extract face photos, or run text and audio extraction.
           </p>
         </div>
       </header>
 
       <main className="main-content">
         <nav className="workflow-navigation" aria-label="Choose extraction tool">
+          <button type="button" className="workflow-choice" aria-pressed={activeWorkflow === "gemini"}
+            aria-controls="gemini-workflow" onClick={() => setActiveWorkflow("gemini")}>
+            <span className="workflow-choice-title">Gemini video analysis</span>
+            <span>Understand scenes, text and visual context</span>
+            <small>Output: scene report + optional face photos</small>
+          </button>
           <button type="button" className="workflow-choice" aria-pressed={activeWorkflow === "faces"}
             aria-controls="faces-workflow" onClick={() => setActiveWorkflow("faces")}>
             <span className="workflow-choice-title">Face extraction</span>
@@ -188,6 +195,7 @@ export function App() {
           </button>
         </nav>
         <p className="workflow-switch-hint">Each tool has its own video upload and results. Switch tools without losing your current selection or progress.</p>
+        <div id="gemini-workflow" className="workflow-panel" hidden={activeWorkflow !== "gemini"}><GeminiAnalysisPanel /></div>
         <div id="faces-workflow" className="workflow-panel" hidden={activeWorkflow !== "faces"}>
           <FaceExtractionPanel />
         </div>

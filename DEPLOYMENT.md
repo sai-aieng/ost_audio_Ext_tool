@@ -61,3 +61,29 @@ CPU detection aborted during model initialization in the Render builder. Model
 loading is still required at face-job runtime. For a full check on a runtime
 host, run `python scripts/check_face_runtime.py` from the backend directory.
 A passing build does not establish inference compatibility or available memory.
+
+## Gemini video analysis
+
+The separate Gemini workspace uses `gemini-3-flash-preview` by default. Set
+`GOOGLE_API_KEY` (or `GEMINI_API_KEY`) in Render > Environment. A local
+`backend/.env` is loaded for development and is intentionally excluded from Git
+and Docker. Set `GEMINI_MODEL` only to override the default model ID.
+
+The original face and OCR/audio tools remain available. Gemini analysis uploads
+video to Google's Files API, analyzes 60-second intervals, and creates the
+five-column scene report as CSV/JSON. Whisper provides dialogue when selected;
+uncheck it for a visual-only API test without loading Whisper on Render.
+Face photos use Gemini boxes on up to 24 representative scene frames, with local
+cropping and conservative duplicate filtering. Observation times are not full
+appearance intervals or confirmed narrator identities. Scene timing/OCR require
+review; context is an interpretation. Partial face failure preserves the report
+and records a warning. Dialogue segments spanning a scene boundary appear in
+both rows, unchanged, with original segment times in JSON.
+
+Limits: 500 MB upload (existing configuration), 20 minutes per Gemini test,
+one Gemini job at a time per process. Keep one worker/instance. Uploaded Google
+files are deleted after processing where possible; local source video is removed
+after the run. Results use the configured output storage and free-tier restarts
+can remove them. Running jobs do not resume after a server restart. Existing
+local model downloads are retained for the original tools. Whisper still needs
+local memory; API offloading does not establish compatibility with 512 MB RAM.

@@ -21,6 +21,7 @@ from api.routes.process import router as process_router
 from api.routes.results import router as results_router
 from api.routes.upload import router as upload_router
 from api.routes.faces import router as faces_router
+from api.routes.gemini import router as gemini_router
 from faces.service import shutdown as shutdown_faces
 from utils.file_utils import ensure_directory, resolve_configured_path
 from utils.logger import configure_logging
@@ -102,6 +103,7 @@ def create_app(
     application.include_router(process_router, prefix="/api/v1")
     application.include_router(results_router, prefix="/api/v1")
     application.include_router(faces_router, prefix="/api/v1")
+    application.include_router(gemini_router, prefix="/api/v1")
 
     @application.get("/health", tags=["system"])
     async def health_check() -> dict[str, str]:
